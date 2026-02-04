@@ -28,6 +28,12 @@ function App() {
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>
+
+      {/* Tailwind CSS Test */}
+      <div className="mt-8 p-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold text-white mb-2">🎉 Tailwind CSS is Working!</h2>
+        <p className="text-white/90">If you can see this styled card, Tailwind is successfully installed.</p>
+      </div>
     </>
   )
 }
