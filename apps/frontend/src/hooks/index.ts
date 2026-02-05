@@ -1,0 +1,1 @@
+export { usePatentSearch } from './usePatentSearch';
