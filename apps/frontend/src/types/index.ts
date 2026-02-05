@@ -20,3 +20,11 @@ export interface SearchResponse {
     mode: SearchMode;
     evidence: EvidenceChunk[];
 }
+
+export interface SearchFilters {
+    yearFrom?: string;
+    yearTo?: string;
+    cpcCodes?: string;
+    assignees?: string;
+    topK: number;
+}
