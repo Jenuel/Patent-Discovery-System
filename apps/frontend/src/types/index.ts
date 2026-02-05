@@ -8,3 +8,15 @@ export interface EvidenceChunk {
     year: string;
     level: 'Patent' | 'Claim' | 'Limitation';
 }
+
+export enum SearchMode {
+    PRIOR_ART = 'Prior Art',
+    INFRINGEMENT = 'Infringement',
+    LANDSCAPE = 'Landscape'
+}
+
+export interface SearchResponse {
+    answer: string;
+    mode: SearchMode;
+    evidence: EvidenceChunk[];
+}
