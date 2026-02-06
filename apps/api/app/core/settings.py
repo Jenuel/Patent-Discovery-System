@@ -4,6 +4,7 @@ from functools import lru_cache
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
 import os
 
 class Settings(BaseModel):
@@ -17,6 +18,12 @@ class Settings(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+
+    try:
+        load_dotenv()
+    except ImportError:
+        pass
+    
     origins = os.getenv("CORS_ALLOW_ORIGINS", "")
     cors_allow_origins = [o.strip() for o in origins.split(",") if o.strip()]
 
