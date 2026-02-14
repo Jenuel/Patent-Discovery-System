@@ -6,7 +6,8 @@ from app.services.indexing.schemas import SparseVector
 
 class DenseRetriever:
     """
-    Responsible for semantic-only retrieval.
+    Responsible for semantic retrieval using Pinecone dense vectors.
+    Supports both patent-level and claim-level retrieval for 2-step hierarchical search.
     """
 
     def __init__(self, store: PineconeStore):
