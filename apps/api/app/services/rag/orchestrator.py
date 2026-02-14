@@ -8,7 +8,7 @@ from app.services.indexing.pinecone import PineconeStore
 from app.services.indexing.elasticsearch import ElasticsearchStore
 from app.services.llm.client import OpenAIClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
-from app.services.rerank.reranker import OpenAIReranker, RerankConfig
+# from app.services.rerank.reranker import OpenAIReranker, RerankConfig  # TEMPORARILY DISABLED
 from app.services.retrieval.dense import DenseRetriever
 from app.services.retrieval.fusion import ScoredMatch
 from app.services.retrieval.hierarchical import HierarchicalRetriever, HierarchicalConfig
@@ -34,10 +34,10 @@ class RAGOrchestrator:
         pinecone_store: Optional[PineconeStore] = None,
         elasticsearch_store: Optional[ElasticsearchStore] = None,
         llm: Optional[OpenAIClient] = None,
-        reranker: Optional[OpenAIReranker] = None,
+        # reranker: Optional[OpenAIReranker] = None,  # TEMPORARILY DISABLED
         policy: Optional[RagPolicy] = None,
         hierarchical_config: Optional[HierarchicalConfig] = None,
-        rerank_config: Optional[RerankConfig] = None,
+        # rerank_config: Optional[RerankConfig] = None,  # TEMPORARILY DISABLED
     ):
         """
         Initialize the RAG orchestrator with all required services.
@@ -47,10 +47,10 @@ class RAGOrchestrator:
             pinecone_store: Pinecone vector store for dense retrieval
             elasticsearch_store: Elasticsearch store for sparse BM25 retrieval
             llm: OpenAI client for answer generation
-            reranker: LLM-based reranker
+            # reranker: LLM-based reranker  # TEMPORARILY DISABLED
             policy: RAG policy configuration
             hierarchical_config: Configuration for hierarchical retrieval
-            rerank_config: Configuration for reranking
+            # rerank_config: Configuration for reranking  # TEMPORARILY DISABLED
         """
         # Initialize core services
         self.embedder = embedder or OpenAIEmbedder.from_env()
@@ -70,9 +70,9 @@ class RAGOrchestrator:
             cfg=self.hierarchical_config,
         )
         
-        # Initialize reranker
-        self.rerank_config = rerank_config or RerankConfig()
-        self.reranker = reranker or OpenAIReranker(llm=self.llm, cfg=self.rerank_config)
+        # Initialize reranker - TEMPORARILY DISABLED
+        # self.rerank_config = rerank_config or RerankConfig()
+        # self.reranker = reranker or OpenAIReranker(llm=self.llm, cfg=self.rerank_config)
         
         # Policy
         self.policy = policy or DEFAULT_POLICY
@@ -90,7 +90,7 @@ class RAGOrchestrator:
         mode: str = "prior_art",
         metadata_filter: Optional[Dict[str, Any]] = None,
         use_hierarchical: bool = True,
-        use_reranking: bool = True,
+        # use_reranking: bool = True,  # TEMPORARILY DISABLED
         use_sparse: bool = True,
     ) -> QueryResponse:
         """
@@ -101,7 +101,7 @@ class RAGOrchestrator:
             mode: Query mode (prior_art, infringement, landscape)
             metadata_filter: Optional metadata filters for retrieval
             use_hierarchical: Whether to use hierarchical retrieval
-            use_reranking: Whether to apply reranking
+            # use_reranking: Whether to apply reranking  # TEMPORARILY DISABLED
             use_sparse: Whether to use sparse BM25 retrieval (default: True)
             
         Returns:
@@ -122,9 +122,9 @@ class RAGOrchestrator:
         # Step 3: Convert to evidence items
         evidence_items = self._to_evidence_items(candidates, source="hybrid")
         
-        # Step 4: Rerank if enabled
-        if use_reranking and evidence_items:
-            evidence_items = await self.reranker.rerank(query, evidence_items)
+        # Step 4: Rerank if enabled - TEMPORARILY DISABLED
+        # if use_reranking and evidence_items:
+        #     evidence_items = await self.reranker.rerank(query, evidence_items)
         
         # Step 5: Apply final policy (top-N)
         evidence_items = evidence_items[: self.policy.final_top_n]
