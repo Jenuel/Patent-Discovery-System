@@ -6,9 +6,9 @@ from app.api.v1.schemas.results import EvidenceItem, QueryResponse
 from app.services.indexing.embed import OpenAIEmbedder
 from app.services.indexing.pinecone import PineconeStore
 from app.services.indexing.elasticsearch import ElasticsearchStore
-from app.services.llm.client import OpenAIClient
+from app.services.llm.client import GeminiClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
-# from app.services.rerank.reranker import OpenAIReranker, RerankConfig  # TEMPORARILY DISABLED
+# from app.services.rerank.reranker import GeminiReranker, RerankConfig  # TEMPORARILY DISABLED
 from app.services.retrieval.dense import DenseRetriever
 from app.services.retrieval.fusion import ScoredMatch
 from app.services.retrieval.hierarchical import HierarchicalRetriever, HierarchicalConfig
@@ -23,8 +23,8 @@ class RAGOrchestrator:
     - Dense vector storage (PineconeStore) - for semantic search
     - Sparse search (ElasticsearchStore) - for BM25 lexical search
     - Retrieval (Dense via Pinecone, Sparse via Elasticsearch, Hierarchical fusion)
-    - Reranking (OpenAIReranker)
-    - LLM generation (OpenAIClient)
+    - Reranking (GeminiReranker)
+    - LLM generation (GeminiClient)
     
     This orchestrates the full RAG pipeline for patent discovery.
     """
@@ -35,8 +35,8 @@ class RAGOrchestrator:
         pinecone_store: Optional[PineconeStore] = None,
         elasticsearch_store: Optional[ElasticsearchStore] = None,
         mongodb_store: Optional[MongoDBStore] = None,
-        llm: Optional[OpenAIClient] = None,
-        # reranker: Optional[OpenAIReranker] = None,  # TEMPORARILY DISABLED
+        llm: Optional[GeminiClient] = None,
+        # reranker: Optional[GeminiReranker] = None,  # TEMPORARILY DISABLED
         policy: Optional[RagPolicy] = None,
         hierarchical_config: Optional[HierarchicalConfig] = None,
         # rerank_config: Optional[RerankConfig] = None,  # TEMPORARILY DISABLED
@@ -49,7 +49,7 @@ class RAGOrchestrator:
             pinecone_store: Pinecone vector store for dense retrieval
             elasticsearch_store: Elasticsearch store for sparse BM25 retrieval
             mongodb_store: MongoDB store for retrieving raw text content
-            llm: OpenAI client for answer generation
+            llm: Gemini client for answer generation
             # reranker: LLM-based reranker  # TEMPORARILY DISABLED
             policy: RAG policy configuration
             hierarchical_config: Configuration for hierarchical retrieval
@@ -60,7 +60,7 @@ class RAGOrchestrator:
         self.pinecone_store = pinecone_store or PineconeStore.from_env()
         self.elasticsearch_store = elasticsearch_store or ElasticsearchStore.from_env()
         self.mongodb_store = mongodb_store or MongoDBStore.from_env()
-        self.llm = llm or OpenAIClient.from_env()
+        self.llm = llm or GeminiClient.from_env()
         
         # Initialize retrievers
         self.dense_retriever = DenseRetriever(self.pinecone_store)
@@ -76,7 +76,7 @@ class RAGOrchestrator:
         
         # Initialize reranker - TEMPORARILY DISABLED
         # self.rerank_config = rerank_config or RerankConfig()
-        # self.reranker = reranker or OpenAIReranker(llm=self.llm, cfg=self.rerank_config)
+        # self.reranker = reranker or GeminiReranker(llm=self.llm, cfg=self.rerank_config)
         
         # Policy
         self.policy = policy or DEFAULT_POLICY

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Protocol, Sequence
 
 from app.api.v1.schemas.results import EvidenceItem
-from app.services.llm.client import OpenAIClient
+from app.services.llm.client import GeminiClient
 
 
 class Reranker(Protocol):
@@ -42,9 +42,9 @@ class NoopReranker:
         return limited[: self.cfg.top_n]
 
 
-class OpenAIReranker:
+class GeminiReranker:
     """
-    LLM-based reranker:
+    LLM-based reranker using Gemini:
       - Takes top-K retrieved candidates
       - Asks the model to produce an ordered list of chunk_ids (or ids)
       - Reorders candidates accordingly
@@ -57,10 +57,10 @@ class OpenAIReranker:
 
     def __init__(
         self,
-        llm: Optional[OpenAIClient] = None,
+        llm: Optional[GeminiClient] = None,
         cfg: Optional[RerankConfig] = None,
     ):
-        self.llm = llm or OpenAIClient.from_env()
+        self.llm = llm or GeminiClient.from_env()
         self.cfg = cfg or RerankConfig()
 
     async def rerank(self, query: str, items: Sequence[EvidenceItem]) -> List[EvidenceItem]:

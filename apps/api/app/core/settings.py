@@ -14,6 +14,7 @@ class Settings(BaseModel):
     pinecone_api_key: Optional[str] = None
     pinecone_index: Optional[str] = None
     openai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 
 
 @lru_cache(maxsize=1)
@@ -33,4 +34,5 @@ def get_settings() -> Settings:
         pinecone_api_key=os.getenv("PINECONE_API_KEY"),
         pinecone_index=os.getenv("PINECONE_INDEX"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
+        gemini_api_key=os.getenv("GEMINI_API_KEY"),
     )

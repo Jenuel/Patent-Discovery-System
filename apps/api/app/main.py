@@ -39,7 +39,9 @@ async def lifespan(app: FastAPI):
     if not settings.pinecone_api_key:
         log.warning("PINECONE_API_KEY not set - vector search will fail")
     if not settings.openai_api_key:
-        log.warning("OPENAI_API_KEY not set - embeddings and LLM calls will fail")
+        log.warning("OPENAI_API_KEY not set - embeddings will fail")
+    if not settings.gemini_api_key:
+        log.warning("GEMINI_API_KEY not set - LLM answer generation will fail")
     
     yield
     
@@ -164,7 +166,11 @@ def _register_routes(app: FastAPI) -> None:
         
         if not settings.openai_api_key:
             ready = False
-            issues.append("OpenAI API key not configured")
+            issues.append("OpenAI API key not configured (needed for embeddings)")
+        
+        if not settings.gemini_api_key:
+            ready = False
+            issues.append("Gemini API key not configured (needed for LLM generation)")
         
         status_code = status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
         
