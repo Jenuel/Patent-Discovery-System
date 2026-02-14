@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from app.api.v1.schemas.results import EvidenceItem, QueryResponse
 from app.services.indexing.embed import OpenAIEmbedder
 from app.services.indexing.pinecone import PineconeStore
-from app.services.indexing.schemas import SparseVector
+from app.services.indexing.elasticsearch import ElasticsearchStore
 from app.services.llm.client import OpenAIClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
 from app.services.rerank.reranker import OpenAIReranker, RerankConfig
@@ -19,8 +19,9 @@ class RAGOrchestrator:
     """
     Main RAG orchestrator that combines all services:
     - Embedding (OpenAIEmbedder)
-    - Vector storage (PineconeStore)
-    - Retrieval (Dense, Sparse, Hierarchical)
+    - Dense vector storage (PineconeStore) - for semantic search
+    - Sparse search (ElasticsearchStore) - for BM25 lexical search
+    - Retrieval (Dense via Pinecone, Sparse via Elasticsearch, Hierarchical fusion)
     - Reranking (OpenAIReranker)
     - LLM generation (OpenAIClient)
     
@@ -30,7 +31,8 @@ class RAGOrchestrator:
     def __init__(
         self,
         embedder: Optional[OpenAIEmbedder] = None,
-        store: Optional[PineconeStore] = None,
+        pinecone_store: Optional[PineconeStore] = None,
+        elasticsearch_store: Optional[ElasticsearchStore] = None,
         llm: Optional[OpenAIClient] = None,
         reranker: Optional[OpenAIReranker] = None,
         policy: Optional[RagPolicy] = None,
@@ -42,7 +44,8 @@ class RAGOrchestrator:
         
         Args:
             embedder: OpenAI embedder for query encoding
-            store: Pinecone vector store
+            pinecone_store: Pinecone vector store for dense retrieval
+            elasticsearch_store: Elasticsearch store for sparse BM25 retrieval
             llm: OpenAI client for answer generation
             reranker: LLM-based reranker
             policy: RAG policy configuration
@@ -51,12 +54,13 @@ class RAGOrchestrator:
         """
         # Initialize core services
         self.embedder = embedder or OpenAIEmbedder.from_env()
-        self.store = store or PineconeStore.from_env()
+        self.pinecone_store = pinecone_store or PineconeStore.from_env()
+        self.elasticsearch_store = elasticsearch_store or ElasticsearchStore.from_env()
         self.llm = llm or OpenAIClient.from_env()
         
         # Initialize retrievers
-        self.dense_retriever = DenseRetriever(self.store)
-        self.sparse_retriever = SparseRetriever(self.store)
+        self.dense_retriever = DenseRetriever(self.pinecone_store)
+        self.sparse_retriever = SparseRetriever(self.elasticsearch_store)
         
         # Initialize hierarchical retriever
         self.hierarchical_config = hierarchical_config or HierarchicalConfig()
@@ -87,7 +91,7 @@ class RAGOrchestrator:
         metadata_filter: Optional[Dict[str, Any]] = None,
         use_hierarchical: bool = True,
         use_reranking: bool = True,
-        sparse_query_vec: Optional[SparseVector] = None,
+        use_sparse: bool = True,
     ) -> QueryResponse:
         """
         Execute full RAG pipeline for a patent query.
@@ -98,7 +102,7 @@ class RAGOrchestrator:
             metadata_filter: Optional metadata filters for retrieval
             use_hierarchical: Whether to use hierarchical retrieval
             use_reranking: Whether to apply reranking
-            sparse_query_vec: Optional sparse vector for hybrid search
+            use_sparse: Whether to use sparse BM25 retrieval (default: True)
             
         Returns:
             QueryResponse with answer and evidence
@@ -108,10 +112,11 @@ class RAGOrchestrator:
         
         # Step 2: Retrieve candidates
         candidates = await self._retrieve(
+            query=query,
             dense_query_vec=dense_query_vec,
-            sparse_query_vec=sparse_query_vec,
             metadata_filter=metadata_filter or {},
             use_hierarchical=use_hierarchical,
+            use_sparse=use_sparse,
         )
         
         # Step 3: Convert to evidence items
@@ -142,10 +147,11 @@ class RAGOrchestrator:
 
     async def _retrieve(
         self,
+        query: str,
         dense_query_vec: List[float],
-        sparse_query_vec: Optional[SparseVector],
         metadata_filter: Dict[str, Any],
         use_hierarchical: bool,
+        use_sparse: bool,
     ) -> List[ScoredMatch]:
         """
         Retrieve candidates using configured retrieval strategy.
@@ -153,7 +159,7 @@ class RAGOrchestrator:
         if use_hierarchical:
             return await self.hierarchical_retriever.retrieve_claims_hierarchical(
                 dense_query_vec=dense_query_vec,
-                sparse_query_vec=sparse_query_vec,
+                query_text=query if use_sparse else None,
                 base_filter=metadata_filter,
             )
         else:
@@ -261,7 +267,7 @@ class RAGOrchestrator:
         metadata_filter: Optional[Dict[str, Any]] = None,
         top_k: int = 20,
         use_hierarchical: bool = True,
-        sparse_query_vec: Optional[SparseVector] = None,
+        use_sparse: bool = True,
     ) -> List[EvidenceItem]:
         """
         Retrieve evidence without generating an answer.
@@ -270,10 +276,11 @@ class RAGOrchestrator:
         dense_query_vec = await self._encode_query(query)
         
         candidates = await self._retrieve(
+            query=query,
             dense_query_vec=dense_query_vec,
-            sparse_query_vec=sparse_query_vec,
             metadata_filter=metadata_filter or {},
             use_hierarchical=use_hierarchical,
+            use_sparse=use_sparse,
         )
         
         evidence_items = self._to_evidence_items(candidates, source="hybrid")
