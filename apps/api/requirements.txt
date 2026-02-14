@@ -6,9 +6,11 @@ pydantic==2.5.3
 # AI & ML
 openai==1.10.0
 pinecone-client==3.0.0
+elasticsearch[async]>=8.0.0
 
 # Environment Management
 python-dotenv==1.0.0
+anyio>=3.0.0
 
 # Optional: Development tools
 # pytest==7.4.3
