@@ -7,6 +7,7 @@ pydantic==2.5.3
 openai==1.10.0
 pinecone-client==3.0.0
 elasticsearch[async]>=8.0.0
+motor>=3.3.0  # Async MongoDB driver
 
 # Environment Management
 python-dotenv==1.0.0
