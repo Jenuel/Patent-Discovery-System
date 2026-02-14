@@ -132,3 +132,7 @@ class HierarchicalRetriever:
         # Convert to ScoredMatch and return
         # No fusion needed at claim level since we only have dense results
         return to_scored_matches(dense_claim)
+
+
+
+# TODO: Return the ids of the metadata of patents and claims

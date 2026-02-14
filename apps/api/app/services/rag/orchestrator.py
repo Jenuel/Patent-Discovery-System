@@ -13,6 +13,7 @@ from app.services.retrieval.dense import DenseRetriever
 from app.services.retrieval.fusion import ScoredMatch
 from app.services.retrieval.hierarchical import HierarchicalRetriever, HierarchicalConfig
 from app.services.retrieval.sparse import SparseRetriever
+from app.services.storage.mongodb import MongoDBStore
 
 
 class RAGOrchestrator:
@@ -33,6 +34,7 @@ class RAGOrchestrator:
         embedder: Optional[OpenAIEmbedder] = None,
         pinecone_store: Optional[PineconeStore] = None,
         elasticsearch_store: Optional[ElasticsearchStore] = None,
+        mongodb_store: Optional[MongoDBStore] = None,
         llm: Optional[OpenAIClient] = None,
         # reranker: Optional[OpenAIReranker] = None,  # TEMPORARILY DISABLED
         policy: Optional[RagPolicy] = None,
@@ -46,6 +48,7 @@ class RAGOrchestrator:
             embedder: OpenAI embedder for query encoding
             pinecone_store: Pinecone vector store for dense retrieval
             elasticsearch_store: Elasticsearch store for sparse BM25 retrieval
+            mongodb_store: MongoDB store for retrieving raw text content
             llm: OpenAI client for answer generation
             # reranker: LLM-based reranker  # TEMPORARILY DISABLED
             policy: RAG policy configuration
@@ -56,6 +59,7 @@ class RAGOrchestrator:
         self.embedder = embedder or OpenAIEmbedder.from_env()
         self.pinecone_store = pinecone_store or PineconeStore.from_env()
         self.elasticsearch_store = elasticsearch_store or ElasticsearchStore.from_env()
+        self.mongodb_store = mongodb_store or MongoDBStore.from_env()
         self.llm = llm or OpenAIClient.from_env()
         
         # Initialize retrievers
@@ -119,8 +123,8 @@ class RAGOrchestrator:
             use_sparse=use_sparse,
         )
         
-        # Step 3: Convert to evidence items
-        evidence_items = self._to_evidence_items(candidates, source="hybrid")
+        # Step 3: Convert to evidence items (fetch text from MongoDB)
+        evidence_items = await self._to_evidence_items(candidates, source="hybrid")
         
         # Step 4: Rerank if enabled - TEMPORARILY DISABLED
         # if use_reranking and evidence_items:
@@ -171,27 +175,51 @@ class RAGOrchestrator:
             from app.services.retrieval.fusion import to_scored_matches
             return to_scored_matches(results)
 
-    def _to_evidence_items(
+    async def _to_evidence_items(
         self,
         matches: List[ScoredMatch],
         source: str,
     ) -> List[EvidenceItem]:
         """
         Convert ScoredMatch objects to EvidenceItem schema.
+        Fetches raw text content from MongoDB using chunk IDs.
+        
+        Args:
+            matches: List of scored matches from retrieval
+            source: Source of the matches (dense|sparse|hybrid|reranked)
+            
+        Returns:
+            List of EvidenceItem objects with text populated from MongoDB
         """
+        if not matches:
+            return []
+        
+        # Extract all chunk IDs from matches
+        chunk_ids = [match.id for match in matches]
+        
+        # Fetch all chunks from MongoDB in a single batch query
+        chunks_map = await self.mongodb_store.get_chunks_by_ids(chunk_ids)
+        
         items: List[EvidenceItem] = []
         
         for match in matches:
             metadata = match.metadata
+            chunk_id = match.id
+            
+            # Get the chunk document from MongoDB
+            chunk_doc = chunks_map.get(chunk_id, {})
+            
+            # Extract text from MongoDB document, fallback to metadata if not found
+            text = chunk_doc.get("text", metadata.get("text", metadata.get("snippet", "")))
             
             items.append(
                 EvidenceItem(
-                    chunk_id=metadata.get("chunk_id", match.id),
-                    patent_id=metadata.get("patent_id", ""),
-                    level=metadata.get("level", "claim"),
-                    title=metadata.get("title"),
-                    claim_no=metadata.get("claim_no"),
-                    text=metadata.get("text", metadata.get("snippet", "")),
+                    chunk_id=chunk_id,
+                    patent_id=metadata.get("patent_id", chunk_doc.get("patent_id", "")),
+                    level=metadata.get("level", chunk_doc.get("section", "claim")),
+                    title=metadata.get("title", chunk_doc.get("title")),
+                    claim_no=metadata.get("claim_no", chunk_doc.get("claim_no")),
+                    text=text,
                     score=match.score,
                     source=source,
                     metadata=metadata,
@@ -283,5 +311,5 @@ class RAGOrchestrator:
             use_sparse=use_sparse,
         )
         
-        evidence_items = self._to_evidence_items(candidates, source="hybrid")
+        evidence_items = await self._to_evidence_items(candidates, source="hybrid")
         return evidence_items[:top_k]
