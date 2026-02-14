@@ -31,6 +31,8 @@ class DenseRetriever:
     ) -> List[Dict[str, Any]]:
 
         import anyio
+        # Extract level for index routing (used in dual-index mode)
+        level = metadata_filter.get("level")
 
         return await anyio.to_thread.run_sync(
             lambda: self.store.query(
@@ -39,5 +41,6 @@ class DenseRetriever:
                 top_k=top_k,
                 alpha=1.0,
                 metadata_filter=metadata_filter,
+                level=level,
             )
         )
