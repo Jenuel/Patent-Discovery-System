@@ -8,19 +8,16 @@ from .utils import apply_alpha_to_query
 
 class PineconeStore:
     """
-    A thin Pinecone wrapper that supports both single-index and dual-index modes:
+    Pinecone wrapper for dual-index mode (enforced).
     
-    Single-index mode:
-    - Uses one index for both patent and claim levels
-    - Differentiates using metadata filters
-    
-    Dual-index mode:
-    - Uses separate indexes for patent and claim levels
-    - Automatically routes queries to the appropriate index based on level
+    Uses separate indexes for patent and claim levels:
+    - Patent index: For patent-level embeddings
+    - Claim index: For claim-level embeddings
+    - Automatically routes queries to the appropriate index based on level parameter
     
     Methods:
-    - upsert(vectors, level): Insert vectors into appropriate index
-    - query(dense, sparse, filter, alpha, level): Query appropriate index
+    - upsert(vectors, level): Insert vectors into appropriate index (level required)
+    - query(dense, sparse, filter, alpha, level): Query appropriate index (level required)
     """
 
     def __init__(self, cfg: PineconeConfig):
@@ -30,35 +27,20 @@ class PineconeStore:
         self.cfg = cfg
         self._pc = Pinecone(api_key=cfg.api_key)
         
-        # Determine mode and initialize indexes
-        self._dual_index_mode = bool(cfg.patent_index_host and cfg.claim_index_host)
+        if not cfg.patent_index_host:
+            raise ValueError("Missing PINECONE_PATENT_INDEX_HOST for dual-index mode")
+        if not cfg.claim_index_host:
+            raise ValueError("Missing PINECONE_CLAIM_INDEX_HOST for dual-index mode")
         
-        if self._dual_index_mode:
-            # Dual index mode: separate indexes for patent and claim
-            if not cfg.patent_index_host:
-                raise ValueError("Missing PINECONE_PATENT_INDEX_HOST for dual-index mode")
-            if not cfg.claim_index_host:
-                raise ValueError("Missing PINECONE_CLAIM_INDEX_HOST for dual-index mode")
-            
-            self._patent_index = self._pc.Index(host=cfg.patent_index_host)
-            self._claim_index = self._pc.Index(host=cfg.claim_index_host)
-            self._index = None  # Not used in dual mode
-        else:
-            # Single index mode: one index for both levels
-            if not cfg.index_host:
-                raise ValueError("Missing PINECONE_INDEX_HOST for single-index mode")
-            
-            self._index = self._pc.Index(host=cfg.index_host)
-            self._patent_index = None
-            self._claim_index = None
+        self._patent_index = self._pc.Index(host=cfg.patent_index_host)
+        self._claim_index = self._pc.Index(host=cfg.claim_index_host)
 
     @classmethod
     def from_env(cls) -> "PineconeStore":
-        """Create PineconeStore from environment variables."""
+        """Create PineconeStore from environment variables (dual-index mode)."""
         import os
         
         api_key = os.getenv("PINECONE_API_KEY", "")
-        index_host = os.getenv("PINECONE_INDEX_HOST", "")
         patent_index_host = os.getenv("PINECONE_PATENT_INDEX_HOST", "")
         claim_index_host = os.getenv("PINECONE_CLAIM_INDEX_HOST", "")
         namespace = os.getenv("PINECONE_NAMESPACE", "default")
@@ -66,41 +48,36 @@ class PineconeStore:
         return cls(
             PineconeConfig(
                 api_key=api_key,
-                index_host=index_host,
                 patent_index_host=patent_index_host,
                 claim_index_host=claim_index_host,
                 namespace=namespace,
             )
         )
     
-    def _get_index(self, level: Optional[str] = None):
+    def _get_index(self, level: str):
         """
         Get the appropriate index based on level.
         
         Args:
-            level: "patent" or "claim" (only used in dual-index mode)
+            level: "patent" or "claim" (required)
             
         Returns:
             The appropriate Pinecone index
         """
-        if not self._dual_index_mode:
-            return self._index
-        
-        # Dual index mode: route based on level
         if level == "patent":
             return self._patent_index
         elif level == "claim":
             return self._claim_index
         else:
             raise ValueError(
-                f"In dual-index mode, 'level' must be 'patent' or 'claim', got: {level}"
+                f"'level' must be 'patent' or 'claim', got: {level}"
             )
 
     def upsert(
         self, 
         vectors: List[Dict[str, Any]], 
         batch_size: int = 100,
-        level: Optional[str] = None,
+        level: str = None,
     ) -> None:
         """
         Upsert vectors to the appropriate index.
@@ -108,7 +85,7 @@ class PineconeStore:
         Args:
             vectors: List of vector dictionaries to upsert
             batch_size: Batch size for upserting
-            level: "patent" or "claim" (required in dual-index mode)
+            level: "patent" or "claim" (required)
         """
         if not vectors:
             return
@@ -130,7 +107,7 @@ class PineconeStore:
         alpha: float = 0.7,
         metadata_filter: Optional[Dict[str, Any]] = None,
         include_metadata: bool = True,
-        level: Optional[str] = None,
+        level: str = None,
     ) -> List[Dict[str, Any]]:
         """
         Query the appropriate index.
@@ -142,7 +119,7 @@ class PineconeStore:
             alpha: Weight for dense vs sparse (1.0 = pure dense, 0.0 = pure sparse)
             metadata_filter: Metadata filters
             include_metadata: Whether to include metadata in results
-            level: "patent" or "claim" (required in dual-index mode)
+            level: "patent" or "claim" (required)
             
         Returns:
             List of matches with id, score, and metadata
