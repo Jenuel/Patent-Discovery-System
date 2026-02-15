@@ -143,6 +143,29 @@ def _register_exception_handlers(app: FastAPI) -> None:
 def _register_routes(app: FastAPI) -> None:
     """Register all API routes."""
     
+    @app.get("/", tags=["Root"])
+    async def welcome() -> Dict[str, Any]:
+        """
+        Welcome endpoint for the Patent Discovery System API.
+        Provides basic information about the API and available documentation.
+        """
+        return {
+            "message": "Welcome to the Patent Discovery System API! 🚀",
+            "service": "patent-discovery-api",
+            "version": "1.0.0",
+            "description": "AI-powered patent search and analysis system",
+            "documentation": {
+                "swagger_ui": "/docs",
+                "redoc": "/redoc",
+                "openapi_schema": "/openapi.json"
+            },
+            "health_endpoints": {
+                "health_check": "/health",
+                "readiness_check": "/ready"
+            },
+            "api_base": "/api/v1"
+        }
+    
     @app.get("/health", tags=["Health"])
     async def health_check() -> Dict[str, str]:
         """
