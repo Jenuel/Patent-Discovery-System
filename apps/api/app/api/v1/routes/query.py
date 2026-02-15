@@ -35,9 +35,7 @@ async def query(req: QueryRequest) -> QueryResponse:
             query=req.query,
             mode=mode,
             metadata_filter=metadata_filter,
-            use_hierarchical=True,
             # use_reranking=True,  # TEMPORARILY DISABLED
-            use_sparse=True,  # Use Elasticsearch BM25 for sparse retrieval
         )
         
         log.info(

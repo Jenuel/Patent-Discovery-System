@@ -93,9 +93,7 @@ class RAGOrchestrator:
         query: str,
         mode: str = "prior_art",
         metadata_filter: Optional[Dict[str, Any]] = None,
-        use_hierarchical: bool = True,
         # use_reranking: bool = True,  # TEMPORARILY DISABLED
-        use_sparse: bool = True,
     ) -> QueryResponse:
         """
         Execute full RAG pipeline for a patent query.
@@ -104,9 +102,7 @@ class RAGOrchestrator:
             query: User query string
             mode: Query mode (prior_art, infringement, landscape)
             metadata_filter: Optional metadata filters for retrieval
-            use_hierarchical: Whether to use hierarchical retrieval
             # use_reranking: Whether to apply reranking  # TEMPORARILY DISABLED
-            use_sparse: Whether to use sparse BM25 retrieval (default: True)
             
         Returns:
             QueryResponse with answer and evidence
@@ -119,8 +115,6 @@ class RAGOrchestrator:
             query=query,
             dense_query_vec=dense_query_vec,
             metadata_filter=metadata_filter or {},
-            use_hierarchical=use_hierarchical,
-            use_sparse=use_sparse,
         )
         
         # Step 3: Convert to evidence items (fetch text from MongoDB)
@@ -154,26 +148,16 @@ class RAGOrchestrator:
         query: str,
         dense_query_vec: List[float],
         metadata_filter: Dict[str, Any],
-        use_hierarchical: bool,
-        use_sparse: bool,
     ) -> List[ScoredMatch]:
         """
-        Retrieve candidates using configured retrieval strategy.
+        Retrieve candidates using hierarchical retrieval with sparse (BM25) enabled.
+        Always uses both dense (Pinecone) and sparse (Elasticsearch) retrieval.
         """
-        if use_hierarchical:
-            return await self.hierarchical_retriever.retrieve_claims_hierarchical(
-                dense_query_vec=dense_query_vec,
-                query_text=query if use_sparse else None,
-                base_filter=metadata_filter,
-            )
-        else:
-            results = await self.dense_retriever.search(
-                dense_vector=dense_query_vec,
-                top_k=50,
-                metadata_filter=metadata_filter,
-            )
-            from app.services.retrieval.fusion import to_scored_matches
-            return to_scored_matches(results)
+        return await self.hierarchical_retriever.retrieve_claims_hierarchical(
+            dense_query_vec=dense_query_vec,
+            query_text=query,
+            base_filter=metadata_filter,
+        )
 
     async def _to_evidence_items(
         self,
@@ -289,27 +273,3 @@ class RAGOrchestrator:
         
         return answer
 
-    async def retrieve_only(
-        self,
-        query: str,
-        metadata_filter: Optional[Dict[str, Any]] = None,
-        top_k: int = 20,
-        use_hierarchical: bool = True,
-        use_sparse: bool = True,
-    ) -> List[EvidenceItem]:
-        """
-        Retrieve evidence without generating an answer.
-        Useful for debugging or custom processing.
-        """
-        dense_query_vec = await self._encode_query(query)
-        
-        candidates = await self._retrieve(
-            query=query,
-            dense_query_vec=dense_query_vec,
-            metadata_filter=metadata_filter or {},
-            use_hierarchical=use_hierarchical,
-            use_sparse=use_sparse,
-        )
-        
-        evidence_items = await self._to_evidence_items(candidates, source="hybrid")
-        return evidence_items[:top_k]
