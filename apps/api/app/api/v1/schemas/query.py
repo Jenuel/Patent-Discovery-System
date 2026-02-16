@@ -15,4 +15,3 @@ class QueryRequest(BaseModel):
         description="Optional: the user's product/system description for infringement-style matching",
     )
     filters: Optional[QueryFilters] = None
-    top_k: int = Field(default=30, ge=5, le=200, description="Retriever candidate count (before rerank)")
