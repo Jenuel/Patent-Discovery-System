@@ -218,22 +218,23 @@ class RAGOrchestrator:
         items: List[EvidenceItem] = []
         
         for match in matches:
-            metadata = match.metadata
             chunk_id = match.id
             
             # Get the chunk document from MongoDB
             chunk_doc = chunks_map.get(chunk_id, {})
             
-            # Extract text from MongoDB document, fallback to metadata if not found
-            text = chunk_doc.get("text", metadata.get("text", metadata.get("snippet", "")))
+            # Extract metadata from chunk document
+            metadata = chunk_doc.get("metadata", {})
+            
+            text = chunk_doc.get("raw_text") or chunk_doc.get("text") or metadata.get("text", metadata.get("snippet", ""))
             
             items.append(
                 EvidenceItem(
                     chunk_id=chunk_id,
-                    patent_id=metadata.get("patent_id", chunk_doc.get("patent_id", "")),
-                    level=metadata.get("level", chunk_doc.get("section", "claim")),
-                    title=metadata.get("title", chunk_doc.get("title")),
-                    claim_no=metadata.get("claim_no", chunk_doc.get("claim_no")),
+                    patent_id=metadata.get("patent_id") or chunk_doc.get("patent_id", ""),
+                    level=metadata.get("section") or chunk_doc.get("section", "claim"),
+                    title=metadata.get("title") or chunk_doc.get("title"),
+                    claim_no=metadata.get("claim_number") or chunk_doc.get("claim_number"),
                     text=text,
                     score=match.score,
                     source=source,

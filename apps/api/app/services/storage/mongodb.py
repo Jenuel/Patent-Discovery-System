@@ -71,7 +71,7 @@ class MongoDBStore:
             Document containing the chunk data, or None if not found
         """
         log.debug(f"[MONGODB] Fetching chunk by ID: {chunk_id}")
-        result = await self.collection.find_one({"_id": chunk_id})
+        result = await self.collection.find_one({"id": chunk_id})
         if result:
             log.debug(f"[MONGODB] Chunk found: {chunk_id}")
         else:
@@ -93,12 +93,12 @@ class MongoDBStore:
             return {}
         
         log.info(f"[MONGODB] Fetching {len(chunk_ids)} chunks in batch query")
-        cursor = self.collection.find({"_id": {"$in": chunk_ids}})
+        cursor = self.collection.find({"id": {"$in": chunk_ids}})
         
         # Build a mapping of chunk_id -> document
         chunks_map: Dict[str, Dict[str, Any]] = {}
         async for doc in cursor:
-            chunk_id = doc.get("_id")
+            chunk_id = doc.get("id")
             if chunk_id:
                 chunks_map[chunk_id] = doc
         
@@ -118,7 +118,7 @@ class MongoDBStore:
             data: Document data to store
         """
         log.debug(f"[MONGODB] Inserting chunk: {chunk_id}")
-        document = {"_id": chunk_id, **data}
+        document = {"id": chunk_id, **data}
         await self.collection.insert_one(document)
         log.debug(f"[MONGODB] Chunk inserted: {chunk_id}")
 
@@ -127,7 +127,7 @@ class MongoDBStore:
         Insert multiple patent chunks in bulk.
         
         Args:
-            chunks: List of documents, each must have an "_id" field
+            chunks: List of documents, each must have an "id" field
         """
         if not chunks:
             log.debug("[MONGODB] No chunks to insert")
