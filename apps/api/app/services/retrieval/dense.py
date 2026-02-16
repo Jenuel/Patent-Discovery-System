@@ -37,7 +37,6 @@ class DenseRetriever:
         return await anyio.to_thread.run_sync(
             lambda: self.store.query(
                 dense=dense_vector,
-                sparse=None,
                 top_k=top_k,
                 alpha=1.0,
                 metadata_filter=metadata_filter,
