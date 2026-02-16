@@ -5,6 +5,10 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
+from app.core.logging import get_logger
+
+log = get_logger(__name__)
+
 
 class MongoDBStore:
     """
@@ -66,7 +70,13 @@ class MongoDBStore:
         Returns:
             Document containing the chunk data, or None if not found
         """
-        return await self.collection.find_one({"_id": chunk_id})
+        log.debug(f"[MONGODB] Fetching chunk by ID: {chunk_id}")
+        result = await self.collection.find_one({"_id": chunk_id})
+        if result:
+            log.debug(f"[MONGODB] Chunk found: {chunk_id}")
+        else:
+            log.warning(f"[MONGODB] Chunk not found: {chunk_id}")
+        return result
 
     async def get_chunks_by_ids(self, chunk_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """
@@ -79,8 +89,10 @@ class MongoDBStore:
             Dictionary mapping chunk_id to document data
         """
         if not chunk_ids:
+            log.debug("[MONGODB] No chunk IDs provided")
             return {}
         
+        log.info(f"[MONGODB] Fetching {len(chunk_ids)} chunks in batch query")
         cursor = self.collection.find({"_id": {"$in": chunk_ids}})
         
         # Build a mapping of chunk_id -> document
@@ -89,6 +101,11 @@ class MongoDBStore:
             chunk_id = doc.get("_id")
             if chunk_id:
                 chunks_map[chunk_id] = doc
+        
+        log.info(f"[MONGODB] Retrieved {len(chunks_map)}/{len(chunk_ids)} chunks")
+        if len(chunks_map) < len(chunk_ids):
+            missing_count = len(chunk_ids) - len(chunks_map)
+            log.warning(f"[MONGODB] {missing_count} chunks not found in database")
         
         return chunks_map
 
@@ -100,8 +117,10 @@ class MongoDBStore:
             chunk_id: The chunk ID
             data: Document data to store
         """
+        log.debug(f"[MONGODB] Inserting chunk: {chunk_id}")
         document = {"_id": chunk_id, **data}
         await self.collection.insert_one(document)
+        log.debug(f"[MONGODB] Chunk inserted: {chunk_id}")
 
     async def insert_chunks(self, chunks: List[Dict[str, Any]]) -> None:
         """
@@ -111,9 +130,12 @@ class MongoDBStore:
             chunks: List of documents, each must have an "_id" field
         """
         if not chunks:
+            log.debug("[MONGODB] No chunks to insert")
             return
         
+        log.info(f"[MONGODB] Bulk inserting {len(chunks)} chunks")
         await self.collection.insert_many(chunks, ordered=False)
+        log.info(f"[MONGODB] Bulk insert complete: {len(chunks)} chunks")
 
     async def close(self) -> None:
         """Close the MongoDB connection."""

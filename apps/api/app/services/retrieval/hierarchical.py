@@ -3,19 +3,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from app.core.logging import get_logger
+
 from app.services.retrieval.dense import DenseRetriever
 from app.services.retrieval.sparse import SparseRetriever
 from app.services.retrieval.fusion import to_scored_matches, fuse_rrf, ScoredMatch
 
+log = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class HierarchicalConfig:
-    """Configuration for hierarchical retrieval."""
-    patent_top_k: int = 30          # Top patents after fusion
-    claim_top_k: int = 60           # Top claims after fusion
-    rrf_k: int = 60                 # RRF constant
-    dense_top_k: int = 50           # Dense retrieval top-k
-    sparse_top_k: int = 50          # Sparse retrieval top-k (patent-level only)
+    """Configuration for hierarchical retrieval.
+    
+    Optimized for dataset sizes:
+    - 113 patent-level instances (Pinecone + Elasticsearch)
+    - 2,200 claim-level instances (Pinecone + MongoDB)
+    """
+    patent_top_k: int = 10          
+    claim_top_k: int = 30           
+    rrf_k: int = 30                 
+    dense_top_k: int = 20          
+    sparse_top_k: int = 20          
 
 
 class HierarchicalRetriever:
@@ -73,35 +82,47 @@ class HierarchicalRetriever:
         Returns:
             List of top claim-level matches
         """
+        log.info("[HIERARCHICAL] Starting 2-stage hierarchical retrieval")
+        log.debug(f"[HIERARCHICAL] Config: patent_top_k={self.cfg.patent_top_k}, claim_top_k={self.cfg.claim_top_k}, rrf_k={self.cfg.rrf_k}")
 
         # -----------------------
         # Stage 1: PATENT level
         # -----------------------
+        log.info("[HIERARCHICAL STAGE 1] Starting patent-level retrieval")
         patent_filter = {"level": "patent", **base_filter}
+        log.debug(f"[HIERARCHICAL STAGE 1] Patent filter: {patent_filter}")
 
         # Dense patent retrieval (Pinecone)
+        log.debug(f"[HIERARCHICAL STAGE 1] Performing dense retrieval (top_k={self.cfg.dense_top_k})")
         dense_pat = await self.dense.search(
             dense_vector=dense_query_vec,
             top_k=self.cfg.dense_top_k,
             metadata_filter=patent_filter,
         )
+        log.info(f"[HIERARCHICAL STAGE 1] Dense retrieval found {len(dense_pat)} patents")
 
         # Sparse patent retrieval (Elasticsearch BM25)
         sparse_pat = []
         if self.sparse and query_text:
+            log.debug(f"[HIERARCHICAL STAGE 1] Performing sparse BM25 retrieval (top_k={self.cfg.sparse_top_k})")
             sparse_pat = await self.sparse.search(
                 query_text=query_text,
                 top_k=self.cfg.sparse_top_k,
                 metadata_filter=patent_filter,
             )
+            log.info(f"[HIERARCHICAL STAGE 1] Sparse retrieval found {len(sparse_pat)} patents")
+        else:
+            log.debug("[HIERARCHICAL STAGE 1] Skipping sparse retrieval (no sparse retriever or query text)")
 
         # Fuse patent-level results using RRF
+        log.debug(f"[HIERARCHICAL STAGE 1] Fusing dense and sparse results with RRF (k={self.cfg.rrf_k})")
         fused_pat = fuse_rrf(
             to_scored_matches(dense_pat),
             to_scored_matches(sparse_pat),
             k=self.cfg.rrf_k,
             top_k=self.cfg.patent_top_k,
         )
+        log.info(f"[HIERARCHICAL STAGE 1] Fusion complete, selected top {len(fused_pat)} patents")
 
         # Extract patent IDs from fused results
         patent_ids = [
@@ -109,30 +130,34 @@ class HierarchicalRetriever:
             for m in fused_pat
             if m.metadata.get("patent_id")
         ]
+        log.debug(f"[HIERARCHICAL STAGE 1] Extracted {len(patent_ids)} patent IDs: {patent_ids}")
 
         if not patent_ids:
+            log.warning("[HIERARCHICAL STAGE 1] No patent IDs found, returning empty results")
             return []
 
         # -----------------------
         # Stage 2: CLAIM level
         # -----------------------
+        log.info("[HIERARCHICAL STAGE 2] Starting claim-level retrieval")
         # Only dense retrieval at claim level (no sparse)
         claim_filter = {
             "level": "claim",
             "patent_id": {"$in": patent_ids},
             **base_filter
         }
+        log.debug(f"[HIERARCHICAL STAGE 2] Claim filter: {claim_filter}")
 
+        log.debug(f"[HIERARCHICAL STAGE 2] Performing dense retrieval (top_k={self.cfg.claim_top_k})")
         dense_claim = await self.dense.search(
             dense_vector=dense_query_vec,
             top_k=self.cfg.claim_top_k,
             metadata_filter=claim_filter,
         )
+        log.info(f"[HIERARCHICAL STAGE 2] Dense retrieval found {len(dense_claim)} claims")
 
         # Convert to ScoredMatch and return
         # No fusion needed at claim level since we only have dense results
-        return to_scored_matches(dense_claim)
-
-
-
-# TODO: Return the ids of the metadata of patents and claims
+        result = to_scored_matches(dense_claim)
+        log.info(f"[HIERARCHICAL] Hierarchical retrieval complete, returning {len(result)} claim-level matches")
+        return result
