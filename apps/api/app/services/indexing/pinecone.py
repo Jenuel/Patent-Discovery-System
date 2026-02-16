@@ -4,8 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from pinecone import Pinecone
 
 from app.core.logging import get_logger
-from .schemas import PineconeConfig, SparseVector
-from .utils import apply_alpha_to_query
+from .schemas import PineconeConfig
 
 log = get_logger(__name__)
 
@@ -139,7 +138,7 @@ class PineconeStore:
             raise ValueError("top_k must be > 0")
 
         log.info(f"[PINECONE] Querying {level} index (top_k={top_k}, alpha={alpha})")
-        log.debug(f"[PINECONE] Query params: filter={metadata_filter}")
+        log.debug(f"[PINECONE] Query params: filter={metadata_filter}") # why is metada_filter {'level': 'patent'}  
         
         index = self._get_index(level)
 
