@@ -26,11 +26,21 @@ async def query(req: QueryRequest) -> QueryResponse:
     - Landscape summaries (if query asks for summary/trends)
 
     """
+    log.info(f"[QUERY START] Received query: '{req.query[:100]}...'")
+    
     try:
+        log.info("[STEP 1/5] Initializing RAG orchestrator")
         orchestrator = RAGOrchestrator.from_env()
-        mode = _determine_mode(req)
-        metadata_filter = _build_metadata_filter(req)
         
+        log.info("[STEP 2/5] Determining query mode")
+        mode = _determine_mode(req)
+        log.info(f"[STEP 2/5] Query mode determined: {mode}")
+        
+        log.info("[STEP 3/5] Building metadata filters")
+        metadata_filter = _build_metadata_filter(req)
+        log.info(f"[STEP 3/5] Metadata filters built: {metadata_filter}")
+        
+        log.info("[STEP 4/5] Executing RAG query pipeline")
         response = await orchestrator.query(
             query=req.query,
             mode=mode,
@@ -39,9 +49,10 @@ async def query(req: QueryRequest) -> QueryResponse:
         )
         
         log.info(
-            f"Query processed successfully: mode={mode}, "
+            f"[STEP 5/5] Query processed successfully: mode={mode}, "
             f"evidence_count={len(response.evidence)}"
         )
+        log.info("[QUERY END] Returning response")
         
         return response
         
@@ -66,12 +77,15 @@ def _determine_mode(req: QueryRequest) -> str:
     query_lower = req.query.lower()
     
     if req.system_description or "infringement" in query_lower or "infringe" in query_lower:
+        log.debug(f"Mode: infringement (system_description={bool(req.system_description)})")
         return "infringement"
     
     landscape_keywords = ["landscape", "summary", "trend", "overview", "analysis"]
     if any(keyword in query_lower for keyword in landscape_keywords):
+        log.debug(f"Mode: landscape (matched keywords in query)")
         return "landscape"
 
+    log.debug("Mode: prior_art (default)")
     return "prior_art"
 
 
@@ -86,12 +100,14 @@ def _build_metadata_filter(req: QueryRequest) -> Dict[str, Any]:
         Metadata filter dictionary for Pinecone
     """
     if not req.filters:
+        log.debug("No filters provided")
         return {}
     
     metadata_filter: Dict[str, Any] = {}
 
     if req.filters.cpc_prefixes:
         metadata_filter["cpc"] = {"$in": req.filters.cpc_prefixes}
+        log.debug(f"Added CPC filter: {req.filters.cpc_prefixes}")
     
     if req.filters.year_from or req.filters.year_to:
         year_filter: Dict[str, int] = {}
@@ -100,8 +116,11 @@ def _build_metadata_filter(req: QueryRequest) -> Dict[str, Any]:
         if req.filters.year_to:
             year_filter["$lte"] = req.filters.year_to
         metadata_filter["year"] = year_filter
+        log.debug(f"Added year filter: {year_filter}")
     
     if req.filters.assignees:
         metadata_filter["assignee"] = {"$in": req.filters.assignees}
+        log.debug(f"Added assignee filter: {req.filters.assignees}")
     
+    log.debug(f"Final metadata filter: {metadata_filter}")
     return metadata_filter

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from app.core.logging import get_logger
+
 from app.api.v1.schemas.results import EvidenceItem, QueryResponse
 from app.services.indexing.embed import OpenAIEmbedder
 from app.services.indexing.pinecone import PineconeStore
@@ -14,6 +16,8 @@ from app.services.retrieval.fusion import ScoredMatch
 from app.services.retrieval.hierarchical import HierarchicalRetriever, HierarchicalConfig
 from app.services.retrieval.sparse import SparseRetriever
 from app.services.storage.mongodb import MongoDBStore
+
+log = get_logger(__name__)
 
 
 class RAGOrchestrator:
@@ -107,41 +111,62 @@ class RAGOrchestrator:
         Returns:
             QueryResponse with answer and evidence
         """
+        log.info(f"[ORCHESTRATOR] Starting RAG pipeline for mode: {mode}")
+        
         # Step 1: Encode query
+        log.info("[ORCHESTRATOR STEP 1/6] Encoding query to dense vector")
         dense_query_vec = await self._encode_query(query)
+        log.info(f"[ORCHESTRATOR STEP 1/6] Query encoded, vector dimension: {len(dense_query_vec)}")
         
         # Step 2: Retrieve candidates
+        log.info("[ORCHESTRATOR STEP 2/6] Retrieving candidates via hierarchical retrieval")
         candidates = await self._retrieve(
             query=query,
             dense_query_vec=dense_query_vec,
             metadata_filter=metadata_filter or {},
         )
+        log.info(f"[ORCHESTRATOR STEP 2/6] Retrieved {len(candidates)} candidates")
         
         # Step 3: Convert to evidence items (fetch text from MongoDB)
+        log.info("[ORCHESTRATOR STEP 3/6] Converting candidates to evidence items (fetching from MongoDB)")
         evidence_items = await self._to_evidence_items(candidates, source="hybrid")
+        log.info(f"[ORCHESTRATOR STEP 3/6] Converted to {len(evidence_items)} evidence items")
         
         # Step 4: Rerank if enabled - TEMPORARILY DISABLED
         # if use_reranking and evidence_items:
+        #     log.info("[ORCHESTRATOR STEP 4/6] Reranking evidence items")
         #     evidence_items = await self.reranker.rerank(query, evidence_items)
+        #     log.info(f"[ORCHESTRATOR STEP 4/6] Reranked to {len(evidence_items)} items")
         
         # Step 5: Apply final policy (top-N)
+        log.info(f"[ORCHESTRATOR STEP 4/6] Applying final policy (top-{self.policy.final_top_n})")
         evidence_items = evidence_items[: self.policy.final_top_n]
+        log.info(f"[ORCHESTRATOR STEP 4/6] Final evidence count: {len(evidence_items)}")
         
         # Step 6: Generate answer
+        log.info("[ORCHESTRATOR STEP 5/6] Generating answer using LLM")
         answer = await self._generate_answer(query, evidence_items, mode)
+        log.info(f"[ORCHESTRATOR STEP 5/6] Answer generated, length: {len(answer)} chars")
         
-        return QueryResponse(
+        log.info("[ORCHESTRATOR STEP 6/6] Building final response")
+        response = QueryResponse(
             mode=mode,
             answer=answer,
             evidence=evidence_items,
         )
+        log.info("[ORCHESTRATOR] RAG pipeline completed successfully")
+        
+        return response
 
     async def _encode_query(self, query: str) -> List[float]:
         """
         Encode query text to dense vector.
         """
+        log.debug(f"Encoding query: '{query[:100]}...'")
         import anyio
-        return await anyio.to_thread.run_sync(lambda: self.embedder.embed(query))
+        vector = await anyio.to_thread.run_sync(lambda: self.embedder.embed(query))
+        log.debug(f"Query encoded successfully, vector dimension: {len(vector)}")
+        return vector
 
     async def _retrieve(
         self,
@@ -153,11 +178,14 @@ class RAGOrchestrator:
         Retrieve candidates using hierarchical retrieval with sparse (BM25) enabled.
         Always uses both dense (Pinecone) and sparse (Elasticsearch) retrieval.
         """
-        return await self.hierarchical_retriever.retrieve_claims_hierarchical(
+        log.debug(f"Starting hierarchical retrieval with filter: {metadata_filter}")
+        candidates = await self.hierarchical_retriever.retrieve_claims_hierarchical(
             dense_query_vec=dense_query_vec,
             query_text=query,
             base_filter=metadata_filter,
         )
+        log.debug(f"Hierarchical retrieval completed, found {len(candidates)} candidates")
+        return candidates
 
     async def _to_evidence_items(
         self,
@@ -176,13 +204,16 @@ class RAGOrchestrator:
             List of EvidenceItem objects with text populated from MongoDB
         """
         if not matches:
+            log.debug("No matches to convert to evidence items")
             return []
         
         # Extract all chunk IDs from matches
         chunk_ids = [match.id for match in matches]
+        log.debug(f"Fetching {len(chunk_ids)} chunks from MongoDB")
         
         # Fetch all chunks from MongoDB in a single batch query
         chunks_map = await self.mongodb_store.get_chunks_by_ids(chunk_ids)
+        log.debug(f"Retrieved {len(chunks_map)} chunks from MongoDB")
         
         items: List[EvidenceItem] = []
         
@@ -210,6 +241,7 @@ class RAGOrchestrator:
                 )
             )
         
+        log.debug(f"Converted {len(items)} matches to evidence items")
         return items
 
     async def _generate_answer(
@@ -222,7 +254,10 @@ class RAGOrchestrator:
         Generate answer using LLM based on retrieved evidence.
         """
         if not evidence:
+            log.warning("No evidence available for answer generation")
             return "No relevant patents found for your query."
+        
+        log.debug(f"Generating answer for {len(evidence)} evidence items")
         
         # Build context from evidence
         context_parts: List[str] = []
@@ -235,6 +270,7 @@ class RAGOrchestrator:
             )
         
         context = "\n".join(context_parts)
+        log.debug(f"Built context with {len(context)} characters")
         
         # Mode-specific instructions
         mode_instructions = {
@@ -266,10 +302,12 @@ class RAGOrchestrator:
             f"Based on the evidence above, provide a comprehensive answer to the query."
         )
         
+        log.debug(f"Calling LLM with prompt length: {len(prompt)} characters")
         answer = await self.llm.generate_text(
             instructions=instructions,
             prompt=prompt,
         )
+        log.debug(f"LLM response received, answer length: {len(answer)} characters")
         
         return answer
 
