@@ -1,7 +1,11 @@
 import os
 from typing import Any, Dict, List, Optional
 from elasticsearch import AsyncElasticsearch
+
+from app.core.logging import get_logger
 from .schemas import ElasticsearchConfig
+
+log = get_logger(__name__)
 
 
 class ElasticsearchStore:
@@ -58,11 +62,13 @@ class ElasticsearchStore:
             doc_id: Document ID
             document: Document to index
         """
+        log.debug(f"[ELASTICSEARCH] Indexing document: {doc_id}")
         await self._client.index(
             index=self.cfg.index_name,
             id=doc_id,
             document=document,
         )
+        log.debug(f"[ELASTICSEARCH] Document indexed: {doc_id}")
 
     async def bulk_index(
         self,
@@ -76,16 +82,19 @@ class ElasticsearchStore:
         """
         from elasticsearch.helpers import async_bulk
         
+        log.info(f"[ELASTICSEARCH] Bulk indexing {len(documents)} documents")
+        
         actions = [
             {
                 "_index": self.cfg.index_name,
-                "_id": doc.pop("_id"),
-                "_source": doc,
+                "_id": doc["_id"],
+                "_source": {k: v for k, v in doc.items() if k != "_id"},
             }
             for doc in documents
         ]
         
         await async_bulk(self._client, actions)
+        log.info(f"[ELASTICSEARCH] Bulk index complete: {len(documents)} documents")
 
     async def search_bm25(
         self,
@@ -112,9 +121,14 @@ class ElasticsearchStore:
         if top_k <= 0:
             raise ValueError("top_k must be > 0")
         
+        log.info(f"[ELASTICSEARCH] BM25 search (top_k={top_k})")
+        log.debug(f"[ELASTICSEARCH] Query text: '{query_text[:100]}...'")
+        
         # Default search fields for patents
         if search_fields is None:
-            search_fields = ["title^2", "abstract^1.5", "claims"]
+            search_fields = ["title^2", "patent_id"]
+        
+        log.debug(f"[ELASTICSEARCH] Search fields: {search_fields}")
         
         # Build query
         query: Dict[str, Any] = {
@@ -133,6 +147,7 @@ class ElasticsearchStore:
         
         # Add metadata filters
         if metadata_filter:
+            log.debug(f"[ELASTICSEARCH] Applying filters: {metadata_filter}")
             filter_clauses = self._build_filter_clauses(metadata_filter)
             if filter_clauses:
                 query["bool"]["filter"] = filter_clauses
@@ -153,6 +168,10 @@ class ElasticsearchStore:
                 "score": hit["_score"],
                 "metadata": hit["_source"],
             })
+        
+        log.info(f"[ELASTICSEARCH] BM25 search complete: found {len(results)} results")
+        if results:
+            log.debug(f"[ELASTICSEARCH] Top result score: {results[0]['score']:.4f}")
         
         return results
 
@@ -226,15 +245,12 @@ class ElasticsearchStore:
                 "properties": {
                     "patent_id": {"type": "keyword"},
                     "title": {"type": "text", "analyzer": "patent_analyzer"},
-                    "abstract": {"type": "text", "analyzer": "patent_analyzer"},
-                    "claims": {"type": "text", "analyzer": "patent_analyzer"},
-                    "level": {"type": "keyword"},
-                    "year": {"type": "integer"},
                     "cpc": {"type": "keyword"},
-                    "assignee": {"type": "keyword"},
+                    "filing_date": {"type": "date"},
+                    "filing_year": {"type": "integer"},
                 }
             }
-        
+                    
         body = {}
         if settings:
             body["settings"] = settings
