@@ -35,4 +35,5 @@ class SparseRetriever:
             query_text=query_text,
             top_k=top_k,
             metadata_filter=metadata_filter,
+            search_fields=["title^2", "abstract", "text", "claims", "patent_id"],
         )
