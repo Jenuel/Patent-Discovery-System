@@ -17,22 +17,22 @@ class DenseRetriever:
         dense_vector: List[float],
         top_k: int,
         metadata_filter: Dict[str, Any],
+        level: str,
     ) -> List[Dict[str, Any]]:
         """
         Pure dense retrieval (alpha = 1.0, no sparse).
         """
-        return await self._run(dense_vector, top_k, metadata_filter)
+        return await self._run(dense_vector, top_k, metadata_filter, level)
 
     async def _run(
         self,
         dense_vector: List[float],
         top_k: int,
         metadata_filter: Dict[str, Any],
+        level: str,
     ) -> List[Dict[str, Any]]:
 
         import anyio
-        # Extract level for index routing (used in dual-index mode)
-        level = metadata_filter.get("level")
 
         return await anyio.to_thread.run_sync(
             lambda: self.store.query(

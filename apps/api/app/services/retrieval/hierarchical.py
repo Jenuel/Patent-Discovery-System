@@ -89,15 +89,14 @@ class HierarchicalRetriever:
         # Stage 1: PATENT level
         # -----------------------
         log.info("[HIERARCHICAL STAGE 1] Starting patent-level retrieval")
-        patent_filter = {"level": "patent", **base_filter}
-        log.debug(f"[HIERARCHICAL STAGE 1] Patent filter: {patent_filter}")
 
         # Dense patent retrieval (Pinecone)
         log.debug(f"[HIERARCHICAL STAGE 1] Performing dense retrieval (top_k={self.cfg.dense_top_k})")
         dense_pat = await self.dense.search(
             dense_vector=dense_query_vec,
             top_k=self.cfg.dense_top_k,
-            metadata_filter=patent_filter,
+            metadata_filter=base_filter,
+            level="patent",
         )
         log.info(f"[HIERARCHICAL STAGE 1] Dense retrieval found {len(dense_pat)} patents")
 
@@ -108,7 +107,7 @@ class HierarchicalRetriever:
             sparse_pat = await self.sparse.search(
                 query_text=query_text,
                 top_k=self.cfg.sparse_top_k,
-                metadata_filter=patent_filter,
+                metadata_filter=base_filter,
             )
             log.info(f"[HIERARCHICAL STAGE 1] Sparse retrieval found {len(sparse_pat)} patents")
         else:
@@ -142,7 +141,6 @@ class HierarchicalRetriever:
         log.info("[HIERARCHICAL STAGE 2] Starting claim-level retrieval")
         # Only dense retrieval at claim level (no sparse)
         claim_filter = {
-            "level": "claim",
             "patent_id": {"$in": patent_ids},
             **base_filter
         }
@@ -153,7 +151,9 @@ class HierarchicalRetriever:
             dense_vector=dense_query_vec,
             top_k=self.cfg.claim_top_k,
             metadata_filter=claim_filter,
+            level="claim",
         )
+        
         log.info(f"[HIERARCHICAL STAGE 2] Dense retrieval found {len(dense_claim)} claims")
 
         # Convert to ScoredMatch and return
