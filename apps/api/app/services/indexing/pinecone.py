@@ -3,8 +3,11 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from pinecone import Pinecone
 
+from app.core.logging import get_logger
 from .schemas import PineconeConfig, SparseVector
 from .utils import apply_alpha_to_query
+
+log = get_logger(__name__)
 
 class PineconeStore:
     """
@@ -65,8 +68,10 @@ class PineconeStore:
             The appropriate Pinecone index
         """
         if level == "patent":
+            log.debug(f"[PINECONE] Using patent index")
             return self._patent_index
         elif level == "claim":
+            log.debug(f"[PINECONE] Using claim index")
             return self._claim_index
         else:
             raise ValueError(
@@ -88,21 +93,26 @@ class PineconeStore:
             level: "patent" or "claim" (required)
         """
         if not vectors:
+            log.debug("[PINECONE] No vectors to upsert")
             return
         
+        log.info(f"[PINECONE] Upserting {len(vectors)} vectors to {level} index (batch_size={batch_size})")
         index = self._get_index(level)
         
+        num_batches = (len(vectors) + batch_size - 1) // batch_size
         for i in range(0, len(vectors), batch_size):
+            batch_num = (i // batch_size) + 1
+            log.debug(f"[PINECONE] Upserting batch {batch_num}/{num_batches}")
             index.upsert(
                 vectors=vectors[i : i + batch_size], 
                 namespace=self.cfg.namespace
             )
+        log.info(f"[PINECONE] Upsert complete: {len(vectors)} vectors")
 
     def query(
         self,
         dense: Sequence[float],
         *,
-        sparse: Optional[SparseVector] = None,
         top_k: int = 20,
         alpha: float = 0.7,
         metadata_filter: Optional[Dict[str, Any]] = None,
@@ -114,7 +124,6 @@ class PineconeStore:
         
         Args:
             dense: Dense query vector
-            sparse: Optional sparse query vector
             top_k: Number of results to return
             alpha: Weight for dense vs sparse (1.0 = pure dense, 0.0 = pure sparse)
             metadata_filter: Metadata filters
@@ -129,23 +138,28 @@ class PineconeStore:
         if top_k <= 0:
             raise ValueError("top_k must be > 0")
 
+        log.info(f"[PINECONE] Querying {level} index (top_k={top_k}, alpha={alpha})")
+        log.debug(f"[PINECONE] Query params: filter={metadata_filter}")
+        
         index = self._get_index(level)
-        q_dense, q_sparse = apply_alpha_to_query(dense, sparse, alpha)
 
         params: Dict[str, Any] = {
             "namespace": self.cfg.namespace,
             "top_k": top_k,
-            "vector": q_dense,
+            "vector": list(dense),
             "include_metadata": include_metadata,
         }
         if metadata_filter:
             params["filter"] = metadata_filter
-        if q_sparse is not None:
-            params["sparse_vector"] = q_sparse
 
         res = index.query(**params)
 
         out: List[Dict[str, Any]] = []
         for m in (res.matches or []):
             out.append({"id": m.id, "score": m.score, "metadata": m.metadata or {}})
+        
+        log.info(f"[PINECONE] Query complete: found {len(out)} matches from {level} index")
+        if out:
+            log.debug(f"[PINECONE] Top result score: {out[0]['score']:.4f}")
+        
         return out
