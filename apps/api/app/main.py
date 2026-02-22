@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
@@ -18,7 +19,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.routes.query import router as query_router
-from app.core.logging import configure_logging, get_logger
+from app.core.logging import configure_logging, get_logger, request_id_var
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -94,21 +95,50 @@ def _configure_middleware(app: FastAPI) -> None:
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     
     @app.middleware("http")
-    async def add_process_time_header(request: Request, call_next):
-        """Add processing time header to all responses."""
+    async def request_middleware(request: Request, call_next):
+        """Handle request ID generation, timing, and structured logging."""
+        req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request_id_var.set(req_id)
+        
         start_time = time.time()
-        response = await call_next(request)
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = f"{process_time:.4f}"
-        return response
+        
+        # Log incoming request
+        log.info(
+            f"Incoming Request: {request.method} {request.url.path}",
+            extra={
+                "http.request.method": request.method,
+                "http.request.url": str(request.url),
+                "client.ip": request.client.host if request.client else None,
+            },
+        )
+        
+        try:
+            response = await call_next(request)
+            
+            process_time = time.time() - start_time
+            response.headers["X-Process-Time"] = f"{process_time:.4f}"
+            response.headers["X-Request-ID"] = req_id
+            
+            log.info(
+                f"Outgoing Response: {request.method} {request.url.path} - Status: {response.status_code}",
+                extra={
+                    "http.response.status_code": response.status_code,
+                    "http.response.duration_seconds": process_time,
+                },
+            )
+            return response
+            
+        except Exception as e:
+            process_time = time.time() - start_time
+            log.exception(
+                f"Request failed: {request.method} {request.url.path}",
+                extra={
+                    "http.response.status_code": 500,
+                    "http.response.duration_seconds": process_time,
+                },
+            )
+            raise e
 
-    @app.middleware("http")
-    async def log_requests(request: Request, call_next):
-        """Log all incoming requests."""
-        log.info(f"Request: {request.method} {request.url.path}")
-        response = await call_next(request)
-        log.info(f"Response: {request.method} {request.url.path} - Status: {response.status_code}")
-        return response
 
 
 def _register_exception_handlers(app: FastAPI) -> None:
