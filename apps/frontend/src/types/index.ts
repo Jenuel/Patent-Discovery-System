@@ -28,3 +28,22 @@ export interface SearchFilters {
     assignees?: string;
     topK: number;
 }
+
+export interface PatentQueryPayload {
+    query: string;
+    system_description?: string;
+    filters?: BackendFilters;
+}
+
+export interface BackendFilters {
+    cpc_prefixes?: string[];
+    year_from?: number;
+    year_to?: number;
+    assignees?: string[];
+}
+
+export interface SearchResponse {
+    answer: string;
+    mode: SearchMode;
+    evidence: EvidenceChunk[];
+}
