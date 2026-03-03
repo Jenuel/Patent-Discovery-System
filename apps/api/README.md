@@ -1,182 +1,134 @@
-# Patent Discovery System - Backend API
+# ⚙️ Patent Discovery System - Backend API
 
-The backend API for the Patent Discovery System, providing AI-powered patent search, prior art discovery, and infringement analysis. It uses a robust Retrieval-Augmented Generation (RAG) architecture powered by Google's Gemini models, combined with sophisticated hierarchical retrieval methods across vector and sparse databases.
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Pinecone](https://img.shields.io/badge/Pinecone-Vector_DB-000000?style=flat)](https://www.pinecone.io/)
+[![Elasticsearch](https://img.shields.io/badge/Elasticsearch-005571?style=flat&logo=elasticsearch)](https://www.elastic.co/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+
+The backend API for the **Patent Discovery System** is a high-performance FastAPI application designed for AI-powered patent search and analysis. It implements a sophisticated **Retrieval-Augmented Generation (RAG)** pipeline that fuses dense and sparse search results to provide highly accurate patent insights.
+
+---
 
 ## 🌟 Key Features
 
-* **Advanced RAG Orchestration**: Combines dense (Pinecone) and sparse (Elasticsearch) retrieval with optional hierarchical (Patent-level then Claim-level) fusion and re-ranking.
-* **Dual-Index Pinecone Architecture**: Optimized for scale by optionally separating patent-level and claim-level vectors into distinct Pinecone vector indices.
-* **Multiple Query Modes**:
-  * `prior_art`: Comprehensive prior art search.
-  * `infringement`: Detailed infringement-style element matching.
-  * `landscape`: Technology landscape summaries and trend analysis.
-* **Rich Filtering**: Filter searches by CPC codes, year ranges, and assignees.
-* **Production-Ready FastAPI Server**: Includes CORS configuration, GZip compression, request logging, standard health/readiness probes, and robust error handling.
+- 🧠 **Dual-Index RAG Engine**: Combines **Pinecone** (Semantic/Dense) and **Elasticsearch** (Lexical/Sparse) for high-precision retrieval.
+- 📚 **Hierarchical Search Strategy**: Intelligently searches patent-level metadata before drilling down into claim-level specifics.
+- 🤖 **LLM Orchestration**: Integrated with **Google Gemini 1.5 Pro** for evidence synthesis and industrial-grade patent analysis.
+- ⚡ **Asynchronous Architecture**: Leverages Python's `async/await` and `Motor` (Async MongoDB) for non-blocking I/O.
+- 🛡️ **Production Ready**: Includes GZip compression, CORS security, structured logging, and robust error handling.
 
-## 🏗️ Architecture
+---
 
-The backend consists of several key layers orchestrated by the `RAGOrchestrator`:
+## 🏗️ Backend Architecture
 
-1. **API Routings (`app/api/v1/routes`)**: Defines REST endpoints using FastAPI. 
-2. **Retrieval Strategy (`app/services/retrieval/`)**:
-    * **Dense**: Embeddings retrieved from Pinecone.
-    * **Sparse**: BM25 lexical search from Elasticsearch.
-    * **Hierarchical**: Multi-stage retrieval traversing patent-level metadata to narrower claim-level data.
-    * **Fusion**: Reciprocal Rank Fusion (RRF) to merge retrieve sources.
-3. **Storage (`app/services/storage/`)**: Integrates with MongoDB to store and fetch raw text contexts / embedded values.
-4. **LLM Integration (`app/services/llm/`)**: Google Gemini is used to synthesize evidence items into a high-quality, relevant answer.
+The API core is built around the `RAGOrchestrator`, which manages the following execution flow:
+
+```mermaid
+sequenceDiagram
+    participant U as User/Frontend
+    participant A as FastAPI Controller
+    participant O as RAG Orchestrator
+    participant E as Embedder (OpenAI)
+    participant V as Vector DB (Pinecone)
+    participant L as Lexical DB (Elasticsearch)
+    participant M as Metadata DB (MongoDB)
+    participant G as LLM (Gemini)
+
+    U->>A: POST /api/v1/query
+    A->>O: orchestrate_query(query)
+    O->>E: get_query_embedding(text)
+    E-->>O: vector representation
+    O->>V: dense_search(vector)
+    O->>L: sparse_search(lexical)
+    V-->>O: candidate IDs
+    L-->>O: candidate IDs
+    O->>O: Reciprocal Rank Fusion (RRF)
+    O->>M: fetch_full_text(top_ids)
+    M-->>O: patent & claim text
+    O->>G: generate_synthesis(query, context)
+    G-->>O: synthesized answer
+    O-->>A: formatted response
+    A-->>U: Final Answer + Evidence
+```
+
+---
 
 ## 🛠️ Technology Stack
 
-* **Core**: Python 3.10+, FastAPI, Pydantic, Uvicorn
-* **Database & Search**:
-  * **Pinecone** (Vector Database for embeddings)
-  * **Elasticsearch** (Lexical/BM25 Search)
-  * **MongoDB** (Metadata and full-text document storage via `motor` async driver)
-* **AI & LLM**: Google Generative AI (Gemini), OpenAI (Embeddings)
-* **Package Management**: `uv` or `pip`
+| Component | Technology |
+| :--- | :--- |
+| **Framework** | [FastAPI](https://fastapi.tiangolo.com/) |
+| **Embeddings** | [OpenAI text-embedding-3-small](https://platform.openai.com/docs/guides/embeddings) |
+| **Generative AI**| [Google Gemini 1.5 Pro](https://ai.google.dev/gemini-api/docs) |
+| **Vector Index** | [Pinecone Serverless](https://www.pinecone.io/) |
+| **Search Engine** | [Elasticsearch (BM25)](https://www.elastic.co/) |
+| **State Storage** | [MongoDB](https://www.mongodb.com/) |
+| **Logic Layer** | [Service Pattern](https://en.wikipedia.org/wiki/Service_layer) |
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-
-Ensure you have the following installed and set up:
-- Python 3.10 or higher
-- [uv](https://github.com/astral-sh/uv) (recommended) or `pip`
-- Active instances for MongoDB, Elasticsearch, and Pinecone.
-- API Keys for Google Gemini, OpenAI, and Pinecone.
-
-### 1. Environment Configuration
-
-Copy the example environment settings and populate the values for your stack:
+### 1. Installation
+We recommend using `uv` for fast dependency management:
 
 ```bash
-cp .env.example .env
-```
+uv venv
+source .venv/bin/activate 
 
-**Required Environment Variables (`.env`)**:
-
-* **Server Settings**:
-  * `ENV=dev` (or `prod`)
-  * `CORS_ALLOW_ORIGINS=*` (comma-separated list for production)
-* **Pinecone settings (Dual-Index mode)**:
-  * `PINECONE_API_KEY=your-api-key`
-  * `PINECONE_PATENT_INDEX=patents-patent-level-xxx...`
-  * `PINECONE_CLAIM_INDEX=patents-claim-level-xxx...`
-  * (Alternatively, for single index mode: `PINECONE_INDEX=your-index-host`)
-* **AI Models**:
-  * `OPENAI_API_KEY=your-openai-api-key`
-  * `GEMINI_API_KEY=your-gemini-api-key`
-
-
-### 2. Installation
-
-We recommend using `uv` for fast dependency management and virtual environment creation.
-
-```bash
-# Create a virtual environment using uv
-uv venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
 uv pip install -r requirements.txt
 ```
 
-Alternatively, use standard `pip`:
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
+### 2. Environment Setup
+Copy `.env.example` and fill in your API keys:
+- `GEMINI_API_KEY`: For LLM synthesis.
+- `OPENAI_API_KEY`: For query embedding.
+- `PINECONE_API_KEY`: For vector retrieval.
 
-### 3. Running the Application
-
-To start the FastAPI server for local development, run Uvicorn:
-
+### 3. Run the Server
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
-*(The server will start at `http://127.0.0.0:8000/`)*
 
 ---
 
 ## 📚 API Reference
 
-For full interactive API documentation, run the application and visit:
-* **Interactive API Docs (Swagger)**: `http://localhost:8000/docs`
-* **Alternative API Docs (ReDoc)**: `http://localhost:8000/redoc`
+Visit `http://localhost:8000/docs` for the interactive Swagger UI.
 
-### Key Endpoints
+### Main Query Endpoint
+`POST /api/v1/query`
 
-#### 1. POST `/api/v1/query`
-Main endpoint for querying the RAG system.
-
-**Request Body** (`application/json`):
+**Request Object:**
 ```json
 {
   "query": "A machine learning algorithm for anomaly detection in cloud computing",
-  "system_description": "We are building an anomaly detection engine using LSTM networks...",
+  "system_description": "Optional: Detailed description for infringement analysis",
   "filters": {
-    "cpc_prefixes": ["G06N", "H04L"],
-    "year_from": 2018,
-    "year_to": 2024,
-    "assignees": ["Google LLC", "Microsoft Corporation"]
+    "year_from": 2020,
+    "assignees": ["Google"]
   }
 }
 ```
 
-*Notes*: 
-- `query` is required (minimum 3 characters). 
-- If `system_description` is provided (or "infringement" keywords exist in the query), the mode dynamically switches to `infringement`.
-- `filters` are optional but heavily recommended to target specific patent buckets.
-
-**Response Structure**:
-```json
-{
-  "mode": "prior_art",
-  "answer": "Based on the retrieved patent documents, the use of LSTM networks for anomaly detection in cloud infrastructure is heavily documented...",
-  "evidence": [
-    {
-      "chunk_id": "chunk-123",
-      "patent_id": "US1234567B2",
-      "level": "claim",
-      "title": "Cloud Anomaly Detection",
-      "claim_no": 1,
-      "text": "A method comprising...",
-      "score": 0.89,
-      "source": "hybrid",
-      "metadata": { ... }
-    }
-  ]
-}
-```
-
-#### 2. System and Health endpoints
-
-* `GET /`: Returns welcome message and basic API overview.
-* `GET /health`: Basic operational health probe.
-* `GET /ready`: Evaluates if all required API keys and services are configured and reachable.
+**Search Modes:**
+- `prior_art`: Comprehensive search for similar inventions.
+- `infringement`: Detailed matching between your technology and patent claims.
+- `landscape`: High-level summary of technology trends.
 
 ---
 
-## 📁 Project Structure
+## 📁 Repository Structure
 
 ```text
-apps/api/
-├── app/
-│   ├── api/          # Web routes and schemas (v1)
-│   ├── core/         # Settings, environmental loading, logging configuration
-│   ├── services/     # Core business logic domain
-│   │   ├── indexing/ # Logic for uploading vectors and data
-│   │   ├── llm/      # Google Gemini integration logic
-│   │   ├── patents/  # Patent-specific parsing or utility
-│   │   ├── rag/      # Complete RAG Orchestrator pipeline
-│   │   ├── rerank/   # Re-ranking models integration (if active)
-│   │   ├── retrieval/# Strategy pattern for Dense/Sparse/Hybrid/Hierarchical fetches
-│   │   └── storage/  # Document/metadata layer interacting with MongoDB
-│   └── main.py       # FastAPI application initialization
-├── requirements.txt  # Dependencies definitions
-└── README.md         # This file!
+app/
+├── api/             # API v1 Controllers & Pydantic Schemas
+├── core/            # Config, Settings, & Global Logging
+├── services/        # Business Logic (The "Brain")
+│   ├── rag/         # RAG Orchestration & Fusion Logic
+│   ├── retrieval/   # Dense/Sparse Search Implementations
+│   ├── llm/         # Gemini Integration Client
+│   └── indexing/    # Vector & Document Ingestion Utilities
+└── main.py          # Application Entry & Lifecycle
 ```

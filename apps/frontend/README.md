@@ -1,73 +1,93 @@
-# React + TypeScript + Vite
+# 🎨 Patent Discovery System - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The frontend for the Patent Discovery System, built with **React**, **TypeScript**, and **Tailwind CSS**. It provides an intuitive interface for searching patents, performing prior art analysis, and exploring technology landscapes.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Features
 
-## React Compiler
+- 🔍 **Unified Search Bar**: Search patents by keyword, patent number, or technical description.
+- 📂 **Patent Viewer**: Side-by-side view for reading patent claims and full texts.
+- 💡 **AI Assistant Panel**: Interactive chat interface for summarizing patent findings.
+- 📊 **Landscape & Analytics**: Visualizations for technology trends and CPC code distributions (Coming soon).
+- 🛠️ **Rich Filtering**: Filter search results by assignee, year, CPC, and more.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🛠️ Technology Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Framework**: [React 19](https://react.dev/)
+- **Build Tool**: [Vite 5+](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS 4+](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **API Client**: [Axios](https://axios-http.com/)
+- **State Management**: React Hooks & Context API
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 📁 Project Structure
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```text
+apps/frontend/
+├── src/
+│   ├── components/     # UI Components (Button, Input, Card)
+│   ├── features/       # Feature-specific logic (Search, Dashboard)
+│   ├── hooks/          # Custom React hooks (usePatentSearch)
+│   ├── lib/            # Utility libraries & API config
+│   ├── types/          # TypeScript definitions
+│   └── App.tsx         # Main application entry point
+├── public/             # Static assets
+└── index.html          # HTML template
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🚀 Getting Started
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [npm](https://www.npmjs.com/) or [pnpm](https://pnpm.io/)
+
+### Installation
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Configure Environment Variables**:
+   Create a `.env` file in the root of `apps/frontend/`:
+   ```env
+   VITE_API_URL=http://localhost:8000
+   ```
+
+3. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Open your browser**:
+   Navigate to `http://localhost:5173`.
+
+---
+
+## 🧪 Development
+
+### Linting & Formatting
+The project uses **ESLint** and **TypeScript** for code quality.
+```bash
+npm run lint
 ```
+
+### Building for Production
+To create an optimized production build:
+```bash
+npm run build
+```
+The output will be in the `dist/` directory.
+
+---
+
+## 🤝 Contributing
+For contributions, please follow the guidelines in the root [README](../../README.md).
