@@ -1,4 +1,8 @@
+from typing import Dict
+
 from datasets import Dataset
+from ragas import evaluate
+from ragas.metrics import answer_relevancy, context_precision, faitfulness
 
 from app.services.rag.orchestrator import RAGOrchestrator
 
@@ -19,3 +23,9 @@ async def load_dataset(
         samples["contexts"].append([e.text for e in response.evidence if e.text])
     
     return Dataset.from_dict(samples)
+
+
+def run_ragas(dataset: Dataset) -> Dict:
+    metrics = [faitfulness, answer_relevancy, context_precision]
+    result = evaluate(dataset, metrics=metrics)
+    return result
