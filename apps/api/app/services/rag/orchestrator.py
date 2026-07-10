@@ -7,7 +7,7 @@ from app.core.logging import get_logger
 from app.api.v1.schemas.results import EvidenceItem, QueryResponse
 from app.services.indexing.embed import OpenAIEmbedder
 from app.services.indexing.pinecone import PineconeStore
-from app.services.indexing.elasticsearch import ElasticsearchStore
+from app.services.indexing.qdrant import QdrantSparseStore
 from app.services.llm.client import GeminiClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
 # from app.services.rerank.reranker import GeminiReranker, RerankConfig  # TEMPORARILY DISABLED
@@ -25,8 +25,8 @@ class RAGOrchestrator:
     Main RAG orchestrator that combines all services:
     - Embedding (OpenAIEmbedder)
     - Dense vector storage (PineconeStore) - for semantic search
-    - Sparse search (ElasticsearchStore) - for BM25 lexical search
-    - Retrieval (Dense via Pinecone, Sparse via Elasticsearch, Hierarchical fusion)
+    - Sparse search (QdrantSparseStore) - for BM25 lexical search
+    - Retrieval (Dense via Pinecone, Sparse via Qdrant, Hierarchical fusion)
     - Reranking (GeminiReranker)
     - LLM generation (GeminiClient)
     
@@ -37,7 +37,7 @@ class RAGOrchestrator:
         self,
         embedder: Optional[OpenAIEmbedder] = None,
         pinecone_store: Optional[PineconeStore] = None,
-        elasticsearch_store: Optional[ElasticsearchStore] = None,
+        qdrant_store: Optional[QdrantSparseStore] = None,
         mongodb_store: Optional[MongoDBStore] = None,
         llm: Optional[GeminiClient] = None,
         # reranker: Optional[GeminiReranker] = None,  # TEMPORARILY DISABLED
@@ -51,7 +51,7 @@ class RAGOrchestrator:
         Args:
             embedder: OpenAI embedder for query encoding
             pinecone_store: Pinecone vector store for dense retrieval
-            elasticsearch_store: Elasticsearch store for sparse BM25 retrieval
+            qdrant_store: Qdrant sparse store for BM25 lexical retrieval
             mongodb_store: MongoDB store for retrieving raw text content
             llm: Gemini client for answer generation
             # reranker: LLM-based reranker  # TEMPORARILY DISABLED
@@ -62,13 +62,13 @@ class RAGOrchestrator:
         # Initialize core services
         self.embedder = embedder or OpenAIEmbedder.from_env()
         self.pinecone_store = pinecone_store or PineconeStore.from_env()
-        self.elasticsearch_store = elasticsearch_store or ElasticsearchStore.from_env()
+        self.qdrant_store = qdrant_store or QdrantSparseStore.from_env()
         self.mongodb_store = mongodb_store or MongoDBStore.from_env()
         self.llm = llm or GeminiClient.from_env()
         
         # Initialize retrievers
         self.dense_retriever = DenseRetriever(self.pinecone_store)
-        self.sparse_retriever = SparseRetriever(self.elasticsearch_store)
+        self.sparse_retriever = SparseRetriever(self.qdrant_store)
         
         # Initialize hierarchical retriever
         self.hierarchical_config = hierarchical_config or HierarchicalConfig()
@@ -176,7 +176,7 @@ class RAGOrchestrator:
     ) -> List[ScoredMatch]:
         """
         Retrieve candidates using hierarchical retrieval with sparse (BM25) enabled.
-        Always uses both dense (Pinecone) and sparse (Elasticsearch) retrieval.
+        Always uses both dense (Pinecone) and sparse (Qdrant) retrieval.
         """
         log.debug(f"Starting hierarchical retrieval with filter: {metadata_filter}")
         candidates = await self.hierarchical_retriever.retrieve_claims_hierarchical(
