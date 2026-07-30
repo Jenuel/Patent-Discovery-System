@@ -6,8 +6,7 @@ from app.core.logging import get_logger
 
 from app.api.v1.schemas.results import EvidenceItem, QueryResponse
 from app.services.indexing.embed import OpenAIEmbedder
-from app.services.indexing.pinecone import PineconeStore
-from app.services.indexing.qdrant import QdrantSparseStore
+from app.services.indexing.qdrant import QdrantHybridStore
 from app.services.llm.client import GeminiClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
 # from app.services.rerank.reranker import GeminiReranker, RerankConfig  # TEMPORARILY DISABLED
@@ -24,20 +23,19 @@ class RAGOrchestrator:
     """
     Main RAG orchestrator that combines all services:
     - Embedding (OpenAIEmbedder)
-    - Dense vector storage (PineconeStore) - for semantic search
-    - Sparse search (QdrantSparseStore) - for BM25 lexical search
-    - Retrieval (Dense via Pinecone, Sparse via Qdrant, Hierarchical fusion)
-    - Reranking (GeminiReranker)
+    - Vector storage (QdrantHybridStore) — patent-level hybrid + claim-level dense
+    - Retrieval (HierarchicalRetriever → DenseRetriever → QdrantHybridStore)
     - LLM generation (GeminiClient)
-    
-    This orchestrates the full RAG pipeline for patent discovery.
+
+    Dense and sparse patent retrieval are handled natively inside Qdrant
+    via Prefetch + RRF fusion.  Claim-level retrieval uses the dedicated
+    ``claims_hybrid`` Qdrant collection.
     """
 
     def __init__(
         self,
         embedder: Optional[OpenAIEmbedder] = None,
-        pinecone_store: Optional[PineconeStore] = None,
-        qdrant_store: Optional[QdrantSparseStore] = None,
+        qdrant_store: Optional[QdrantHybridStore] = None,
         mongodb_store: Optional[MongoDBStore] = None,
         llm: Optional[GeminiClient] = None,
         # reranker: Optional[GeminiReranker] = None,  # TEMPORARILY DISABLED
@@ -47,29 +45,25 @@ class RAGOrchestrator:
     ):
         """
         Initialize the RAG orchestrator with all required services.
-        
+
         Args:
-            embedder: OpenAI embedder for query encoding
-            pinecone_store: Pinecone vector store for dense retrieval
-            qdrant_store: Qdrant sparse store for BM25 lexical retrieval
-            mongodb_store: MongoDB store for retrieving raw text content
-            llm: Gemini client for answer generation
-            # reranker: LLM-based reranker  # TEMPORARILY DISABLED
-            policy: RAG policy configuration
-            hierarchical_config: Configuration for hierarchical retrieval
-            # rerank_config: Configuration for reranking  # TEMPORARILY DISABLED
+            embedder:            OpenAI embedder for query encoding.
+            qdrant_store:        Qdrant hybrid store for both patent and claim retrieval.
+            mongodb_store:       MongoDB store for retrieving raw text content.
+            llm:                 Gemini client for answer generation.
+            policy:              RAG policy configuration.
+            hierarchical_config: Configuration for hierarchical retrieval.
         """
         # Initialize core services
         self.embedder = embedder or OpenAIEmbedder.from_env()
-        self.pinecone_store = pinecone_store or PineconeStore.from_env()
-        self.qdrant_store = qdrant_store or QdrantSparseStore.from_env()
+        self.qdrant_store = qdrant_store or QdrantHybridStore.from_env()
         self.mongodb_store = mongodb_store or MongoDBStore.from_env()
         self.llm = llm or GeminiClient.from_env()
-        
+
         # Initialize retrievers
-        self.dense_retriever = DenseRetriever(self.pinecone_store)
+        self.dense_retriever = DenseRetriever(self.qdrant_store)
         self.sparse_retriever = SparseRetriever(self.qdrant_store)
-        
+
         # Initialize hierarchical retriever
         self.hierarchical_config = hierarchical_config or HierarchicalConfig()
         self.hierarchical_retriever = HierarchicalRetriever(
@@ -77,11 +71,11 @@ class RAGOrchestrator:
             sparse=self.sparse_retriever,
             cfg=self.hierarchical_config,
         )
-        
+
         # Initialize reranker - TEMPORARILY DISABLED
         # self.rerank_config = rerank_config or RerankConfig()
         # self.reranker = reranker or GeminiReranker(llm=self.llm, cfg=self.rerank_config)
-        
+
         # Policy
         self.policy = policy or DEFAULT_POLICY
 
@@ -175,8 +169,9 @@ class RAGOrchestrator:
         metadata_filter: Dict[str, Any],
     ) -> List[ScoredMatch]:
         """
-        Retrieve candidates using hierarchical retrieval with sparse (BM25) enabled.
-        Always uses both dense (Pinecone) and sparse (Qdrant) retrieval.
+        Retrieve candidates using hierarchical retrieval backed by Qdrant.
+        Stage 1 uses Qdrant native hybrid (dense + BM25) on patents_hybrid.
+        Stage 2 uses Qdrant dense search on claims_hybrid.
         """
         log.debug(f"Starting hierarchical retrieval with filter: {metadata_filter}")
         candidates = await self.hierarchical_retriever.retrieve_claims_hierarchical(

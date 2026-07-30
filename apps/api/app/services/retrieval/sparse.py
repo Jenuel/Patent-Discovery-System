@@ -1,15 +1,23 @@
 from typing import Any, Dict, List
 
-from app.services.indexing.qdrant import QdrantSparseStore
+from app.services.indexing.qdrant import QdrantHybridStore
 
 
 class SparseRetriever:
     """
-    Responsible for lexical retrieval using Qdrant BM25 sparse vectors.
+    BM25-only retrieval backed by Qdrant ``patents_hybrid``.
+
     Operates at PATENT LEVEL ONLY.
+
+    .. note::
+        With :class:`~app.services.retrieval.dense.DenseRetriever` now calling
+        :meth:`~QdrantHybridStore.search_hybrid` for patent-level retrieval,
+        this retriever is only needed as a BM25-only fallback (e.g. when no
+        dense embedding is available).  Normal retrieval paths go through
+        ``DenseRetriever`` directly.
     """
 
-    def __init__(self, store: QdrantSparseStore):
+    def __init__(self, store: QdrantHybridStore):
         self.store = store
 
     async def search(
@@ -19,18 +27,16 @@ class SparseRetriever:
         metadata_filter: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """
-        Pure BM25 sparse retrieval at patent level using Qdrant sparse vectors.
+        Pure BM25 sparse retrieval at patent level.
 
         Args:
-            query_text: Query text for BM25 search
-            top_k: Number of results to return
-            metadata_filter: Metadata filters (must include level='patent')
+            query_text:      Query text for BM25 search.
+            top_k:           Number of results to return.
+            metadata_filter: Metadata filters.
 
         Returns:
-            List of patent-level search results
+            List of patent-level search results.
         """
-        # Ensure we're only searching at patent level.
-        # The filter should already contain level='patent' from hierarchical retriever.
         return await self.store.search_bm25(
             query_text=query_text,
             top_k=top_k,
