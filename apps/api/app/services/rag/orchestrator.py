@@ -214,26 +214,37 @@ class RAGOrchestrator:
         
         for match in matches:
             chunk_id = match.id
-            
+
             # Get the chunk document from MongoDB
             chunk_doc = chunks_map.get(chunk_id, {})
-            
-            # Extract metadata from chunk document
-            metadata = chunk_doc.get("metadata", {})
-            
-            text = chunk_doc.get("raw_text") or chunk_doc.get("text") or metadata.get("text", metadata.get("snippet", ""))
-            
+
+            metadata = chunk_doc.get("metadata") or {}
+
+            def field(*names: str, default: Any = None) -> Any:
+                for name in names:
+                    for src in (metadata, chunk_doc, match.metadata):
+                        value = src.get(name)
+                        if value not in (None, ""):
+                            return value
+                return default
+
+            text = field("raw_text", "text", "content", "snippet", default="")
+
             items.append(
                 EvidenceItem(
                     chunk_id=chunk_id,
-                    patent_id=metadata.get("patent_id") or chunk_doc.get("patent_id", ""),
-                    level=metadata.get("section") or chunk_doc.get("section", "claim"),
-                    title=metadata.get("title") or chunk_doc.get("title"),
-                    claim_no=metadata.get("claim_number") or chunk_doc.get("claim_number"),
+                    patent_id=field("patent_id", default=""),
+                    level=field("section", "level", default="claim"),
+                    title=field("title"),
+                    # Chunk documents spell this claim_no; keep claim_number as
+                    # an alias so either ingestion shape works.
+                    claim_no=field("claim_no", "claim_number"),
                     text=text,
                     score=match.score,
                     source=source,
-                    metadata=metadata,
+                    metadata=metadata or {
+                        k: v for k, v in chunk_doc.items() if k != "_id"
+                    } or match.metadata,
                 )
             )
         
