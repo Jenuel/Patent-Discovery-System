@@ -43,7 +43,15 @@ async def lifespan(app: FastAPI):
         log.warning("OPENAI_API_KEY not set - embeddings will fail")
     if not settings.gemini_api_key:
         log.warning("GEMINI_API_KEY not set - LLM answer generation will fail")
-    
+
+    from app.services.indexing.qdrant import warm_bm25_encoder
+
+    try:
+        await warm_bm25_encoder()
+        log.info("BM25 sparse encoder ready")
+    except Exception:
+        log.warning("BM25 encoder warm-up failed - sparse retrieval may be degraded", exc_info=True)
+
     yield
     
     log.info("Shutting down Patent Discovery System API")
