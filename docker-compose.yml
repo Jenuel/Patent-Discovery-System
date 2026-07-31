@@ -8,28 +8,28 @@ services:
     restart: unless-stopped
     env_file:
       - ./apps/api/.env
+    # Secrets and required, no-sane-default config (API keys, hosts, URIs) are
+    # supplied by env_file above, not listed here. environment: takes
+    # precedence over env_file, and an unset ${VAR} with no :- default
+    # resolves to an empty string — which would silently blank out whatever
+    # real value apps/api/.env provides. Only vars with a genuine safe
+    # default belong in this block.
     environment:
       ENV: ${ENV:-production}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-models/gemini-2.5-flash}
-      PINECONE_API_KEY: ${PINECONE_API_KEY}
-      PINECONE_PATENT_INDEX_HOST: ${PINECONE_PATENT_INDEX_HOST}
-      PINECONE_CLAIM_INDEX_HOST: ${PINECONE_CLAIM_INDEX_HOST}
       PINECONE_NAMESPACE: ${PINECONE_NAMESPACE:-default}
-      QDRANT_URL: ${QDRANT_URL}
-      QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_PATENT_COLLECTION_NAME: ${QDRANT_PATENT_COLLECTION_NAME:-patents_hybrid}
       QDRANT_CLAIM_COLLECTION_NAME: ${QDRANT_CLAIM_COLLECTION_NAME:-claims_hybrid}
       QDRANT_DENSE_VECTOR_SIZE: ${QDRANT_DENSE_VECTOR_SIZE:-1536}
-      MONGODB_URI: ${MONGODB_URI}
       MONGODB_DATABASE: ${MONGODB_DATABASE:-patent_database}
       MONGODB_COLLECTION: ${MONGODB_COLLECTION:-patent_chunks}
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      # curl is not installed in the runtime image (see Dockerfile) — reuse
+      # the same dependency-free Python probe so this stays in sync with it.
+      test: [ "CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=5).status == 200 else 1)" ]
       interval: 30s
       timeout: 10s
       retries: 5
