@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 from app.core.logging import get_logger
 
 from app.services.retrieval.dense import DenseRetriever
-from app.services.retrieval.sparse import SparseRetriever
 from app.services.retrieval.fusion import to_scored_matches, ScoredMatch
 
 log = get_logger(__name__)
@@ -45,20 +44,14 @@ class HierarchicalRetriever:
     It describes patents, and Stage 2 only ever sees claims whose patent
     already passed it — so the selection is enforced exactly once, at the
     level whose payload schema actually has those fields.
-
-    ``sparse`` is accepted for backward compatibility but is effectively
-    unused when ``query_text`` is supplied to Stage 1 (``DenseRetriever``
-    handles both arms natively).
     """
 
     def __init__(
         self,
         dense: DenseRetriever,
-        sparse: Optional[SparseRetriever] = None,
         cfg: Optional[HierarchicalConfig] = None,
     ):
         self.dense = dense
-        self.sparse = sparse
         self.cfg = cfg or HierarchicalConfig()
 
     async def retrieve_claims_hierarchical(

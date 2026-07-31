@@ -9,11 +9,9 @@ from app.services.indexing.embed import OpenAIEmbedder
 from app.services.indexing.qdrant import QdrantHybridStore
 from app.services.llm.client import GeminiClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
-# from app.services.rerank.reranker import GeminiReranker, RerankConfig  # TEMPORARILY DISABLED
 from app.services.retrieval.dense import DenseRetriever
 from app.services.retrieval.fusion import ScoredMatch
 from app.services.retrieval.hierarchical import HierarchicalRetriever, HierarchicalConfig
-from app.services.retrieval.sparse import SparseRetriever
 from app.services.storage.mongodb import MongoDBStore
 
 log = get_logger(__name__)
@@ -38,10 +36,8 @@ class RAGOrchestrator:
         qdrant_store: Optional[QdrantHybridStore] = None,
         mongodb_store: Optional[MongoDBStore] = None,
         llm: Optional[GeminiClient] = None,
-        # reranker: Optional[GeminiReranker] = None,  # TEMPORARILY DISABLED
         policy: Optional[RagPolicy] = None,
         hierarchical_config: Optional[HierarchicalConfig] = None,
-        # rerank_config: Optional[RerankConfig] = None,  # TEMPORARILY DISABLED
     ):
         """
         Initialize the RAG orchestrator with all required services.
@@ -62,19 +58,13 @@ class RAGOrchestrator:
 
         # Initialize retrievers
         self.dense_retriever = DenseRetriever(self.qdrant_store)
-        self.sparse_retriever = SparseRetriever(self.qdrant_store)
 
         # Initialize hierarchical retriever
         self.hierarchical_config = hierarchical_config or HierarchicalConfig()
         self.hierarchical_retriever = HierarchicalRetriever(
             dense=self.dense_retriever,
-            sparse=self.sparse_retriever,
             cfg=self.hierarchical_config,
         )
-
-        # Initialize reranker - TEMPORARILY DISABLED
-        # self.rerank_config = rerank_config or RerankConfig()
-        # self.reranker = reranker or GeminiReranker(llm=self.llm, cfg=self.rerank_config)
 
         # Policy
         self.policy = policy or DEFAULT_POLICY
@@ -91,17 +81,15 @@ class RAGOrchestrator:
         query: str,
         mode: str = "prior_art",
         metadata_filter: Optional[Dict[str, Any]] = None,
-        # use_reranking: bool = True,  # TEMPORARILY DISABLED
     ) -> QueryResponse:
         """
         Execute full RAG pipeline for a patent query.
-        
+
         Args:
             query: User query string
             mode: Query mode (prior_art, infringement, landscape)
             metadata_filter: Optional metadata filters for retrieval
-            # use_reranking: Whether to apply reranking  # TEMPORARILY DISABLED
-            
+
         Returns:
             QueryResponse with answer and evidence
         """
@@ -126,13 +114,7 @@ class RAGOrchestrator:
         evidence_items = await self._to_evidence_items(candidates, source="hybrid")
         log.info(f"[ORCHESTRATOR STEP 3/6] Converted to {len(evidence_items)} evidence items")
         
-        # Step 4: Rerank if enabled - TEMPORARILY DISABLED
-        # if use_reranking and evidence_items:
-        #     log.info("[ORCHESTRATOR STEP 4/6] Reranking evidence items")
-        #     evidence_items = await self.reranker.rerank(query, evidence_items)
-        #     log.info(f"[ORCHESTRATOR STEP 4/6] Reranked to {len(evidence_items)} items")
-        
-        # Step 5: Apply final policy (top-N)
+        # Step 4: Apply final policy (top-N)
         log.info(f"[ORCHESTRATOR STEP 4/6] Applying final policy (top-{self.policy.final_top_n})")
         evidence_items = evidence_items[: self.policy.final_top_n]
         log.info(f"[ORCHESTRATOR STEP 4/6] Final evidence count: {len(evidence_items)}")

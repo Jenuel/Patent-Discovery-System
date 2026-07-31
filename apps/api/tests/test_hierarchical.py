@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.services.retrieval.hierarchical import HierarchicalConfig, HierarchicalRetriever
 
@@ -27,59 +27,8 @@ class FakeDense:
         return self._patent_results if level == "patent" else self._claim_results
 
 
-class FakeSparse:
-    def __init__(self, results: Optional[List[Dict[str, Any]]] = None, exc: Optional[Exception] = None):
-        self._results = results or []
-        self._exc = exc
-        self.calls: List[Dict[str, Any]] = []
-
-    async def search(self, query_text, top_k, metadata_filter):
-        self.calls.append({"query_text": query_text, "metadata_filter": metadata_filter, "top_k": top_k})
-        if self._exc:
-            raise self._exc
-        return self._results
-
-
 def _dense_patent(patent_id: str) -> Dict[str, Any]:
     return {"id": patent_id, "score": 0.9, "metadata": {"patent_id": patent_id}}
-
-
-class SparseExceptionFallbackTests(unittest.IsolatedAsyncioTestCase):
-    async def test_sparse_exception_degrades_to_dense_only(self):
-        dense = FakeDense(
-            patent_results=[_dense_patent("US1")],
-            claim_results=[{"id": "claim-1", "score": 0.5, "metadata": {"patent_id": "US1"}}],
-        )
-        sparse = FakeSparse(exc=RuntimeError("qdrant unreachable"))
-        retriever = HierarchicalRetriever(dense=dense, sparse=sparse, cfg=HierarchicalConfig())
-
-        # Must not raise, and must still surface the dense-only claim results.
-        result = await retriever.retrieve_claims_hierarchical(
-            dense_query_vec=[0.1, 0.2],
-            query_text="battery cathode",
-            base_filter={},
-        )
-
-        self.assertEqual([m.id for m in result], ["claim-1"])
-        # Stage 2 ran with the dense-only patent allowlist, proving fusion
-        # degraded to dense rather than emptying the pipeline.
-        stage2_call = dense.calls[1]
-        self.assertEqual(stage2_call["metadata_filter"]["patent_id"], {"$in": ["US1"]})
-
-    async def test_no_sparse_retriever_still_works(self):
-        dense = FakeDense(
-            patent_results=[_dense_patent("US1")],
-            claim_results=[{"id": "claim-1", "score": 0.5, "metadata": {"patent_id": "US1"}}],
-        )
-        retriever = HierarchicalRetriever(dense=dense, sparse=None, cfg=HierarchicalConfig())
-
-        result = await retriever.retrieve_claims_hierarchical(
-            dense_query_vec=[0.1, 0.2],
-            query_text="battery cathode",
-            base_filter={},
-        )
-
-        self.assertEqual([m.id for m in result], ["claim-1"])
 
 
 class ClaimFilterScopeTests(unittest.IsolatedAsyncioTestCase):
@@ -88,8 +37,7 @@ class ClaimFilterScopeTests(unittest.IsolatedAsyncioTestCase):
             patent_results=[_dense_patent("US1")],
             claim_results=[],
         )
-        sparse = FakeSparse(results=[])
-        retriever = HierarchicalRetriever(dense=dense, sparse=sparse, cfg=HierarchicalConfig())
+        retriever = HierarchicalRetriever(dense=dense, cfg=HierarchicalConfig())
 
         # A caller-supplied filter that (accidentally or not) also sets patent_id.
         base_filter = {"patent_id": {"$eq": "SHOULD_NOT_WIN"}, "year": {"$gte": 2020}}
@@ -114,7 +62,7 @@ class ClaimFilterScopeTests(unittest.IsolatedAsyncioTestCase):
             patent_results=[_dense_patent("US1")],
             claim_results=[{"id": "claim-1", "score": 0.5, "metadata": {"patent_id": "US1"}}],
         )
-        retriever = HierarchicalRetriever(dense=dense, sparse=None, cfg=HierarchicalConfig())
+        retriever = HierarchicalRetriever(dense=dense, cfg=HierarchicalConfig())
 
         base_filter = {"year": {"$gte": 2020}, "cpc": {"$in": ["G06N"]}}
 
@@ -139,7 +87,7 @@ class ClaimFilterScopeTests(unittest.IsolatedAsyncioTestCase):
             patent_results=[_dense_patent("US1")],
             claim_results=[],
         )
-        retriever = HierarchicalRetriever(dense=dense, sparse=None, cfg=HierarchicalConfig())
+        retriever = HierarchicalRetriever(dense=dense, cfg=HierarchicalConfig())
 
         base_filter = {"year": {"$gte": 2020}}
         await retriever.retrieve_claims_hierarchical(

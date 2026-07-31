@@ -37,8 +37,6 @@ async def lifespan(app: FastAPI):
     log.info(f"Environment: {settings.env}")
     log.info(f"CORS origins: {settings.cors_allow_origins}")
 
-    if not settings.pinecone_api_key:
-        log.warning("PINECONE_API_KEY not set - vector search will fail")
     if not settings.openai_api_key:
         log.warning("OPENAI_API_KEY not set - embeddings will fail")
     if not settings.gemini_api_key:
@@ -220,11 +218,7 @@ def _register_routes(app: FastAPI) -> None:
         """
         ready = True
         issues = []
-        
-        if not settings.pinecone_api_key:
-            ready = False
-            issues.append("Pinecone API key not configured")
-        
+
         if not settings.openai_api_key:
             ready = False
             issues.append("OpenAI API key not configured (needed for embeddings)")
