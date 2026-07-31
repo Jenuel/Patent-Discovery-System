@@ -16,3 +16,5 @@ ENV/
 *.log
 *.txt
 !requirements.txt
+
+evaluation/results/
