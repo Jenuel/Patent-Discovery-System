@@ -9,14 +9,14 @@ export const DEFAULT_FILTERS = {
     yearFrom: '',
     yearTo: '',
     cpcCodes: '',
-    topK: 30
+    topK: 20
 } as const;
 
 export const FILTER_LIMITS = {
     topK: {
-        min: 10,
-        max: 100,
-        step: 5
+        min: 4,
+        max: 30,
+        step: 2
     }
 } as const;
 

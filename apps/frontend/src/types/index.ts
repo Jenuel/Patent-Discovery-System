@@ -30,6 +30,7 @@ export interface SearchFilters {
 export interface PatentQueryPayload {
     query: string;
     system_description?: string;
+    top_k?: number;
     filters?: BackendFilters;
 }
 

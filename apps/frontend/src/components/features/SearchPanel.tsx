@@ -124,8 +124,8 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
                         </div>
                         <div className="md:col-span-2 space-y-2">
                             <div className="flex justify-between items-center">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Top K Candidates</label>
-                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{filters.topK} Patents</span>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Evidence Returned</label>
+                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{filters.topK} claims</span>
                             </div>
                             <input
                                 type="range"

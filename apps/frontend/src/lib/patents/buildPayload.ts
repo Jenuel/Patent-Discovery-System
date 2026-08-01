@@ -11,6 +11,10 @@ export const buildPayload = (
         payload.system_description = systemDescription;
     }
 
+    if (filters.topK) {
+        payload.top_k = filters.topK;
+    }
+
     const backendFilters = {
         ...(filters.cpcCodes && { cpc_prefixes: filters.cpcCodes.split(',').map(s => s.trim()).filter(Boolean) }),
         ...(filters.yearFrom && { year_from: parseInt(filters.yearFrom, 10) }),
