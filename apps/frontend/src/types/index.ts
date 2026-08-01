@@ -2,7 +2,7 @@ export interface EvidenceChunk {
     patentId: string;
     title: string;
     score: number;
-    sourceType: 'dense' | 'sparse' | 'hybrid';
+    sourceType: 'dense' | 'sparse' | 'hybrid' | 'reranked';
     textSnippet: string;
     year: string;
     level: 'Patent' | 'Claim' | 'Limitation';
