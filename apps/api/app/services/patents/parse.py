@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -52,7 +53,8 @@ def extract_patent_id(raw: Dict) -> str:
     )
     if pid:
         return pid
-    return f"UNKNOWN:{abs(hash(_first_str(raw.get('title'), raw.get('abstract'))))}"
+    fallback = _first_str(raw.get("title"), raw.get("abstract"))
+    return f"UNKNOWN:{hashlib.sha256(fallback.encode()).hexdigest()[:16]}"
 
 
 def extract_title(raw: Dict) -> str:

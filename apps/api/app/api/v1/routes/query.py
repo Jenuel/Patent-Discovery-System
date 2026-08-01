@@ -45,7 +45,6 @@ async def query(req: QueryRequest) -> QueryResponse:
             query=req.query,
             mode=mode,
             metadata_filter=metadata_filter,
-            # use_reranking=True,  # TEMPORARILY DISABLED
         )
         
         log.info(
@@ -91,13 +90,13 @@ def _determine_mode(req: QueryRequest) -> str:
 
 def _build_metadata_filter(req: QueryRequest) -> Dict[str, Any]:
     """
-    Build Pinecone metadata filter from query request filters.
-    
+    Build a Qdrant metadata filter from query request filters.
+
     Args:
         req: The query request
-        
+
     Returns:
-        Metadata filter dictionary for Pinecone
+        Metadata filter dictionary for Qdrant
     """
     if not req.filters:
         log.debug("No filters provided")

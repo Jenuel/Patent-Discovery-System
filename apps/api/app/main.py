@@ -37,13 +37,32 @@ async def lifespan(app: FastAPI):
     log.info(f"Environment: {settings.env}")
     log.info(f"CORS origins: {settings.cors_allow_origins}")
 
-    if not settings.pinecone_api_key:
-        log.warning("PINECONE_API_KEY not set - vector search will fail")
     if not settings.openai_api_key:
         log.warning("OPENAI_API_KEY not set - embeddings will fail")
     if not settings.gemini_api_key:
         log.warning("GEMINI_API_KEY not set - LLM answer generation will fail")
-    
+
+    from app.services.indexing.qdrant import warm_bm25_encoder
+
+    try:
+        await warm_bm25_encoder()
+        log.info("BM25 sparse encoder ready")
+    except Exception:
+        log.warning("BM25 encoder warm-up failed - sparse retrieval may be degraded", exc_info=True)
+
+    if settings.rerank_enabled:
+        from app.services.rerank.reranker import warm_reranker
+
+        try:
+            await warm_reranker(settings.rerank_model)
+            log.info(f"Cross-encoder reranker ready ({settings.rerank_model})")
+        except Exception:
+            log.warning(
+                "Reranker warm-up failed - retrieval will fall back to "
+                "bi-encoder ordering",
+                exc_info=True,
+            )
+
     yield
     
     log.info("Shutting down Patent Discovery System API")
@@ -212,11 +231,7 @@ def _register_routes(app: FastAPI) -> None:
         """
         ready = True
         issues = []
-        
-        if not settings.pinecone_api_key:
-            ready = False
-            issues.append("Pinecone API key not configured")
-        
+
         if not settings.openai_api_key:
             ready = False
             issues.append("OpenAI API key not configured (needed for embeddings)")

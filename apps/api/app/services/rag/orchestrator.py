@@ -6,15 +6,12 @@ from app.core.logging import get_logger
 
 from app.api.v1.schemas.results import EvidenceItem, QueryResponse
 from app.services.indexing.embed import OpenAIEmbedder
-from app.services.indexing.pinecone import PineconeStore
-from app.services.indexing.elasticsearch import ElasticsearchStore
+from app.services.indexing.qdrant import QdrantHybridStore
 from app.services.llm.client import GeminiClient
 from app.services.rag.policies import RagPolicy, DEFAULT_POLICY
-# from app.services.rerank.reranker import GeminiReranker, RerankConfig  # TEMPORARILY DISABLED
 from app.services.retrieval.dense import DenseRetriever
 from app.services.retrieval.fusion import ScoredMatch
 from app.services.retrieval.hierarchical import HierarchicalRetriever, HierarchicalConfig
-from app.services.retrieval.sparse import SparseRetriever
 from app.services.storage.mongodb import MongoDBStore
 
 log = get_logger(__name__)
@@ -24,64 +21,65 @@ class RAGOrchestrator:
     """
     Main RAG orchestrator that combines all services:
     - Embedding (OpenAIEmbedder)
-    - Dense vector storage (PineconeStore) - for semantic search
-    - Sparse search (ElasticsearchStore) - for BM25 lexical search
-    - Retrieval (Dense via Pinecone, Sparse via Elasticsearch, Hierarchical fusion)
-    - Reranking (GeminiReranker)
+    - Vector storage (QdrantHybridStore) — patent-level hybrid + claim-level dense
+    - Retrieval (HierarchicalRetriever → DenseRetriever → QdrantHybridStore)
     - LLM generation (GeminiClient)
-    
-    This orchestrates the full RAG pipeline for patent discovery.
+
+    Dense and sparse patent retrieval are handled natively inside Qdrant
+    via Prefetch + RRF fusion.  Claim-level retrieval uses the dedicated
+    ``claims_hybrid`` Qdrant collection.
     """
 
     def __init__(
         self,
         embedder: Optional[OpenAIEmbedder] = None,
-        pinecone_store: Optional[PineconeStore] = None,
-        elasticsearch_store: Optional[ElasticsearchStore] = None,
+        qdrant_store: Optional[QdrantHybridStore] = None,
         mongodb_store: Optional[MongoDBStore] = None,
         llm: Optional[GeminiClient] = None,
-        # reranker: Optional[GeminiReranker] = None,  # TEMPORARILY DISABLED
         policy: Optional[RagPolicy] = None,
         hierarchical_config: Optional[HierarchicalConfig] = None,
-        # rerank_config: Optional[RerankConfig] = None,  # TEMPORARILY DISABLED
+        reranker: Optional[Any] = None,
     ):
         """
         Initialize the RAG orchestrator with all required services.
-        
+
         Args:
-            embedder: OpenAI embedder for query encoding
-            pinecone_store: Pinecone vector store for dense retrieval
-            elasticsearch_store: Elasticsearch store for sparse BM25 retrieval
-            mongodb_store: MongoDB store for retrieving raw text content
-            llm: Gemini client for answer generation
-            # reranker: LLM-based reranker  # TEMPORARILY DISABLED
-            policy: RAG policy configuration
-            hierarchical_config: Configuration for hierarchical retrieval
-            # rerank_config: Configuration for reranking  # TEMPORARILY DISABLED
+            embedder:            OpenAI embedder for query encoding.
+            qdrant_store:        Qdrant hybrid store for both patent and claim retrieval.
+            mongodb_store:       MongoDB store for retrieving raw text content.
+            llm:                 Gemini client for answer generation.
+            policy:              RAG policy configuration.
+            hierarchical_config: Configuration for hierarchical retrieval.
+            reranker:            Cross-encoder reranker (RET-07). Built from
+                                 settings when omitted; pass ``False`` to
+                                 disable explicitly, or an instance to inject.
         """
         # Initialize core services
         self.embedder = embedder or OpenAIEmbedder.from_env()
-        self.pinecone_store = pinecone_store or PineconeStore.from_env()
-        self.elasticsearch_store = elasticsearch_store or ElasticsearchStore.from_env()
+        self.qdrant_store = qdrant_store or QdrantHybridStore.from_env()
         self.mongodb_store = mongodb_store or MongoDBStore.from_env()
         self.llm = llm or GeminiClient.from_env()
-        
+
         # Initialize retrievers
-        self.dense_retriever = DenseRetriever(self.pinecone_store)
-        self.sparse_retriever = SparseRetriever(self.elasticsearch_store)
-        
+        self.dense_retriever = DenseRetriever(self.qdrant_store)
+
+        if reranker is None:
+            from app.core.settings import get_settings
+
+            if get_settings().rerank_enabled:
+                from app.services.rerank.reranker import CrossEncoderReranker
+
+                reranker = CrossEncoderReranker.from_env()
+        self.reranker = reranker or None
+
         # Initialize hierarchical retriever
         self.hierarchical_config = hierarchical_config or HierarchicalConfig()
         self.hierarchical_retriever = HierarchicalRetriever(
             dense=self.dense_retriever,
-            sparse=self.sparse_retriever,
             cfg=self.hierarchical_config,
+            reranker=self.reranker,
         )
-        
-        # Initialize reranker - TEMPORARILY DISABLED
-        # self.rerank_config = rerank_config or RerankConfig()
-        # self.reranker = reranker or GeminiReranker(llm=self.llm, cfg=self.rerank_config)
-        
+
         # Policy
         self.policy = policy or DEFAULT_POLICY
 
@@ -97,17 +95,15 @@ class RAGOrchestrator:
         query: str,
         mode: str = "prior_art",
         metadata_filter: Optional[Dict[str, Any]] = None,
-        # use_reranking: bool = True,  # TEMPORARILY DISABLED
     ) -> QueryResponse:
         """
         Execute full RAG pipeline for a patent query.
-        
+
         Args:
             query: User query string
             mode: Query mode (prior_art, infringement, landscape)
             metadata_filter: Optional metadata filters for retrieval
-            # use_reranking: Whether to apply reranking  # TEMPORARILY DISABLED
-            
+
         Returns:
             QueryResponse with answer and evidence
         """
@@ -132,13 +128,7 @@ class RAGOrchestrator:
         evidence_items = await self._to_evidence_items(candidates, source="hybrid")
         log.info(f"[ORCHESTRATOR STEP 3/6] Converted to {len(evidence_items)} evidence items")
         
-        # Step 4: Rerank if enabled - TEMPORARILY DISABLED
-        # if use_reranking and evidence_items:
-        #     log.info("[ORCHESTRATOR STEP 4/6] Reranking evidence items")
-        #     evidence_items = await self.reranker.rerank(query, evidence_items)
-        #     log.info(f"[ORCHESTRATOR STEP 4/6] Reranked to {len(evidence_items)} items")
-        
-        # Step 5: Apply final policy (top-N)
+        # Step 4: Apply final policy (top-N)
         log.info(f"[ORCHESTRATOR STEP 4/6] Applying final policy (top-{self.policy.final_top_n})")
         evidence_items = evidence_items[: self.policy.final_top_n]
         log.info(f"[ORCHESTRATOR STEP 4/6] Final evidence count: {len(evidence_items)}")
@@ -175,8 +165,9 @@ class RAGOrchestrator:
         metadata_filter: Dict[str, Any],
     ) -> List[ScoredMatch]:
         """
-        Retrieve candidates using hierarchical retrieval with sparse (BM25) enabled.
-        Always uses both dense (Pinecone) and sparse (Elasticsearch) retrieval.
+        Retrieve candidates using hierarchical retrieval backed by Qdrant.
+        Stage 1 uses Qdrant native hybrid (dense + BM25) on patents_hybrid.
+        Stage 2 uses Qdrant dense search on claims_hybrid.
         """
         log.debug(f"Starting hierarchical retrieval with filter: {metadata_filter}")
         candidates = await self.hierarchical_retriever.retrieve_claims_hierarchical(
@@ -219,26 +210,37 @@ class RAGOrchestrator:
         
         for match in matches:
             chunk_id = match.id
-            
+
             # Get the chunk document from MongoDB
             chunk_doc = chunks_map.get(chunk_id, {})
-            
-            # Extract metadata from chunk document
-            metadata = chunk_doc.get("metadata", {})
-            
-            text = chunk_doc.get("raw_text") or chunk_doc.get("text") or metadata.get("text", metadata.get("snippet", ""))
-            
+
+            metadata = chunk_doc.get("metadata") or {}
+
+            def field(*names: str, default: Any = None) -> Any:
+                for name in names:
+                    for src in (metadata, chunk_doc, match.metadata):
+                        value = src.get(name)
+                        if value not in (None, ""):
+                            return value
+                return default
+
+            text = field("raw_text", "text", "content", "snippet", default="")
+
             items.append(
                 EvidenceItem(
                     chunk_id=chunk_id,
-                    patent_id=metadata.get("patent_id") or chunk_doc.get("patent_id", ""),
-                    level=metadata.get("section") or chunk_doc.get("section", "claim"),
-                    title=metadata.get("title") or chunk_doc.get("title"),
-                    claim_no=metadata.get("claim_number") or chunk_doc.get("claim_number"),
+                    patent_id=field("patent_id", default=""),
+                    level=field("section", "level", default="claim"),
+                    title=field("title"),
+                    # Chunk documents spell this claim_no; keep claim_number as
+                    # an alias so either ingestion shape works.
+                    claim_no=field("claim_no", "claim_number"),
                     text=text,
                     score=match.score,
                     source=source,
-                    metadata=metadata,
+                    metadata=metadata or {
+                        k: v for k, v in chunk_doc.items() if k != "_id"
+                    } or match.metadata,
                 )
             )
         

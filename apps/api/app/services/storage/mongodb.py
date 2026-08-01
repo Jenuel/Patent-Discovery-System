@@ -71,7 +71,7 @@ class MongoDBStore:
             Document containing the chunk data, or None if not found
         """
         log.debug(f"[MONGODB] Fetching chunk by ID: {chunk_id}")
-        result = await self.collection.find_one({"id": chunk_id})
+        result = await self.collection.find_one({"_id": chunk_id})
         if result:
             log.debug(f"[MONGODB] Chunk found: {chunk_id}")
         else:
@@ -93,14 +93,14 @@ class MongoDBStore:
             return {}
         
         log.info(f"[MONGODB] Fetching {len(chunk_ids)} chunks in batch query")
-        cursor = self.collection.find({"id": {"$in": chunk_ids}})
-        
+        cursor = self.collection.find({"_id": {"$in": chunk_ids}})
+
         # Build a mapping of chunk_id -> document
         chunks_map: Dict[str, Dict[str, Any]] = {}
         async for doc in cursor:
-            chunk_id = doc.get("id")
+            chunk_id = doc.get("_id")
             if chunk_id:
-                chunks_map[chunk_id] = doc
+                chunks_map[str(chunk_id)] = doc
         
         log.info(f"[MONGODB] Retrieved {len(chunks_map)}/{len(chunk_ids)} chunks")
         if len(chunks_map) < len(chunk_ids):
@@ -118,8 +118,8 @@ class MongoDBStore:
             data: Document data to store
         """
         log.debug(f"[MONGODB] Inserting chunk: {chunk_id}")
-        document = {"id": chunk_id, **data}
-        await self.collection.insert_one(document)
+        document = {**data, "_id": chunk_id}
+        await self.collection.replace_one({"_id": chunk_id}, document, upsert=True)
         log.debug(f"[MONGODB] Chunk inserted: {chunk_id}")
 
     async def insert_chunks(self, chunks: List[Dict[str, Any]]) -> None:
@@ -133,9 +133,26 @@ class MongoDBStore:
             log.debug("[MONGODB] No chunks to insert")
             return
         
-        log.info(f"[MONGODB] Bulk inserting {len(chunks)} chunks")
-        await self.collection.insert_many(chunks, ordered=False)
-        log.info(f"[MONGODB] Bulk insert complete: {len(chunks)} chunks")
+        from pymongo import ReplaceOne
+
+        log.info(f"[MONGODB] Bulk upserting {len(chunks)} chunks")
+        operations = [
+            ReplaceOne({"_id": chunk["_id"]}, chunk, upsert=True)
+            for chunk in chunks
+            if chunk.get("_id")
+        ]
+        if len(operations) < len(chunks):
+            log.warning(
+                f"[MONGODB] Skipped {len(chunks) - len(operations)} chunks with no _id"
+            )
+        if not operations:
+            return
+
+        result = await self.collection.bulk_write(operations, ordered=False)
+        log.info(
+            f"[MONGODB] Bulk upsert complete: {result.upserted_count} inserted, "
+            f"{result.modified_count} updated"
+        )
 
     async def close(self) -> None:
         """Close the MongoDB connection."""

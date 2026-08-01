@@ -11,28 +11,26 @@ class Settings(BaseModel):
     env: str = Field(default="dev")
     cors_allow_origins: List[str] = Field(default_factory=list)
 
-    pinecone_api_key: Optional[str] = None
-    pinecone_index: Optional[str] = None
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
+
+    rerank_enabled: bool = False
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    load_dotenv()
 
-    try:
-        load_dotenv()
-    except ImportError:
-        pass
-    
     origins = os.getenv("CORS_ALLOW_ORIGINS", "")
     cors_allow_origins = [o.strip() for o in origins.split(",") if o.strip()]
 
     return Settings(
         env=os.getenv("ENV", "dev"),
         cors_allow_origins=cors_allow_origins,
-        pinecone_api_key=os.getenv("PINECONE_API_KEY"),
-        pinecone_index=os.getenv("PINECONE_INDEX"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
+        rerank_enabled=os.getenv("RERANK_ENABLED", "false").strip().lower()
+        in ("true", "1", "yes"),
+        rerank_model=os.getenv("RERANK_MODEL", "Xenova/ms-marco-MiniLM-L-6-v2"),
     )
