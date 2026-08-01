@@ -45,6 +45,7 @@ async def query(req: QueryRequest) -> QueryResponse:
             query=req.query,
             mode=mode,
             metadata_filter=metadata_filter,
+            top_k=req.top_k,
         )
         
         log.info(

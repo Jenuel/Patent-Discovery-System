@@ -95,6 +95,7 @@ class RAGOrchestrator:
         query: str,
         mode: str = "prior_art",
         metadata_filter: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
     ) -> QueryResponse:
         """
         Execute full RAG pipeline for a patent query.
@@ -103,6 +104,9 @@ class RAGOrchestrator:
             query: User query string
             mode: Query mode (prior_art, infringement, landscape)
             metadata_filter: Optional metadata filters for retrieval
+            top_k: Override for the number of evidence items returned. Cannot
+                exceed what Stage 2 retrieved, so callers asking for more than
+                claim_top_k simply get everything available.
 
         Returns:
             QueryResponse with answer and evidence
@@ -129,8 +133,9 @@ class RAGOrchestrator:
         log.info(f"[ORCHESTRATOR STEP 3/6] Converted to {len(evidence_items)} evidence items")
         
         # Step 4: Apply final policy (top-N)
-        log.info(f"[ORCHESTRATOR STEP 4/6] Applying final policy (top-{self.policy.final_top_n})")
-        evidence_items = evidence_items[: self.policy.final_top_n]
+        final_top_n = top_k if top_k is not None else self.policy.final_top_n
+        log.info(f"[ORCHESTRATOR STEP 4/6] Applying final policy (top-{final_top_n})")
+        evidence_items = evidence_items[:final_top_n]
         log.info(f"[ORCHESTRATOR STEP 4/6] Final evidence count: {len(evidence_items)}")
         
         # Step 6: Generate answer

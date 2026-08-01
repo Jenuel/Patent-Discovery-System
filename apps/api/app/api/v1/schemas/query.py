@@ -9,6 +9,12 @@ class QueryFilters(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=3, description="User query, e.g., prior art / infringement question")
+    top_k: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=30,
+        description="Evidence items to return. Capped at the claim-level retrieval depth (30).",
+    )
     system_description: Optional[str] = Field(
         default=None,
         description="Optional: the user's product/system description for infringement-style matching",
