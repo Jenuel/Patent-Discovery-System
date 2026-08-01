@@ -8,16 +8,7 @@ export const APP_CONFIG = {
 export const DEFAULT_FILTERS = {
     yearFrom: '',
     yearTo: '',
-    cpcCodes: '',
-    topK: 20
-} as const;
-
-export const FILTER_LIMITS = {
-    topK: {
-        min: 4,
-        max: 30,
-        step: 2
-    }
+    cpcCodes: ''
 } as const;
 
 export const FEATURES = [

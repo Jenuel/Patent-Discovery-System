@@ -24,13 +24,11 @@ export interface SearchFilters {
     yearFrom?: string;
     yearTo?: string;
     cpcCodes?: string;
-    topK: number;
 }
 
 export interface PatentQueryPayload {
     query: string;
     system_description?: string;
-    top_k?: number;
     filters?: BackendFilters;
 }
 

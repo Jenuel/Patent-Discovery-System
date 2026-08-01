@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, ChevronDown, ChevronUp, SlidersHorizontal, AlertCircle, FileText } from 'lucide-react';
 import type { SearchFilters } from '../../types';
-import { DEFAULT_FILTERS, FILTER_LIMITS } from '../../constants';
+import { DEFAULT_FILTERS } from '../../constants';
 
 interface SearchPanelProps {
     onSearch: (query: string, systemDescription: string, filters: SearchFilters) => void;
@@ -121,21 +121,6 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
                             <p className="text-[11px] text-slate-400">
                                 4-character section prefixes, comma separated.
                             </p>
-                        </div>
-                        <div className="md:col-span-2 space-y-2">
-                            <div className="flex justify-between items-center">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Evidence Returned</label>
-                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{filters.topK} claims</span>
-                            </div>
-                            <input
-                                type="range"
-                                min={FILTER_LIMITS.topK.min}
-                                max={FILTER_LIMITS.topK.max}
-                                step={FILTER_LIMITS.topK.step}
-                                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                                value={filters.topK}
-                                onChange={(e) => setFilters({ ...filters, topK: parseInt(e.target.value) })}
-                            />
                         </div>
                     </div>
                 )}
