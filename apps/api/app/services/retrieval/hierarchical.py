@@ -15,15 +15,23 @@ log = get_logger(__name__)
 class HierarchicalConfig:
     """Configuration for hierarchical retrieval.
 
-    Optimized for dataset sizes:
-    - 113 patent-level instances (Qdrant patents_hybrid)
-    - 2,200 claim-level instances (Qdrant claims_hybrid)
+    Current corpus (2026-07-31): 6,000 patents in ``patents_hybrid``,
+    55,702 claim chunks in ``claims_hybrid``.
+
+    These values were originally tuned for a 113-patent / 2,200-chunk corpus,
+    i.e. ~53x and ~25x smaller. ``patent_top_k=10`` was 8.8% of that corpus and
+    is 0.17% of this one, which is part of why recall@10 sits near 0.49
+    (EVAL_BASELINE.md). Revisit them alongside reranking rather than in
+    isolation: raising ``patent_top_k`` without a reranker pushes unordered
+    noise into Stage 2 instead of better candidates.
     """
     patent_top_k: int = 10
     claim_top_k: int = 30
     rrf_k: int = 30
     dense_top_k: int = 20
     sparse_top_k: int = 20
+
+    rerank_candidates: int = 50
 
 
 class HierarchicalRetriever:
@@ -50,9 +58,21 @@ class HierarchicalRetriever:
         self,
         dense: DenseRetriever,
         cfg: Optional[HierarchicalConfig] = None,
+        reranker: Optional[Any] = None,
     ):
+        """
+        Args:
+            dense:    Patent/claim retriever backed by Qdrant.
+            cfg:      Retrieval sizing. Defaults to :class:`HierarchicalConfig`.
+            reranker: Optional cross-encoder (RET-07). When supplied, Stage 1
+                      fetches ``cfg.rerank_candidates`` and the reranker picks
+                      ``cfg.patent_top_k`` from them. When ``None`` the
+                      behaviour is exactly as before — the top
+                      ``cfg.patent_top_k`` by retrieval score are used.
+        """
         self.dense = dense
         self.cfg = cfg or HierarchicalConfig()
+        self.reranker = reranker
 
     async def retrieve_claims_hierarchical(
         self,
@@ -96,10 +116,14 @@ class HierarchicalRetriever:
         # ---------------------------------------------------------------
         log.info("[HIERARCHICAL STAGE 1] Starting patent-level hybrid retrieval")
 
+        stage1_top_k = (
+            self.cfg.rerank_candidates if self.reranker else self.cfg.dense_top_k
+        )
+
         try:
             patent_results_raw = await self.dense.search(
                 dense_vector=dense_query_vec,
-                top_k=self.cfg.dense_top_k,
+                top_k=stage1_top_k,
                 metadata_filter=base_filter,
                 level="patent",
                 query_text=query_text,
@@ -115,6 +139,36 @@ class HierarchicalRetriever:
         log.info(
             f"[HIERARCHICAL STAGE 1] Hybrid retrieval returned {len(patent_results)} patents"
         )
+
+        # ---------------------------------------------------------------
+        # Stage 1b: RERANK (RET-07) — optional, never fatal
+        # ---------------------------------------------------------------
+        if self.reranker and patent_results:
+            if not query_text:
+                # A cross-encoder scores (query, document) text pairs; there is
+                # nothing to score against a bare vector.
+                log.debug(
+                    "[HIERARCHICAL STAGE 1b] No query_text — skipping rerank"
+                )
+            else:
+                try:
+                    before = [m.id for m in patent_results[: self.cfg.patent_top_k]]
+                    patent_results = await self.reranker.rerank(
+                        query_text, patent_results, top_n=self.cfg.patent_top_k
+                    )
+                    after = [m.id for m in patent_results]
+                    log.info(
+                        f"[HIERARCHICAL STAGE 1b] Reranked "
+                        f"{len(before)}->{len(after)} patents "
+                        f"({sum(1 for i in after if i not in before)} promoted "
+                        f"from beyond rank {self.cfg.patent_top_k})"
+                    )
+                except Exception:
+                    log.warning(
+                        "[HIERARCHICAL STAGE 1b] Rerank failed, "
+                        "continuing with retrieval order",
+                        exc_info=True,
+                    )
 
         # Extract patent IDs from the already-fused results (top patent_top_k)
         patent_ids = [
