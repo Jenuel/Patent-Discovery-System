@@ -105,8 +105,8 @@ def _build_metadata_filter(req: QueryRequest) -> Dict[str, Any]:
     metadata_filter: Dict[str, Any] = {}
 
     if req.filters.cpc_prefixes:
-        metadata_filter["cpc"] = {"$in": req.filters.cpc_prefixes}
-        log.debug(f"Added CPC filter: {req.filters.cpc_prefixes}")
+        metadata_filter["cpc_prefix"] = {"$in": req.filters.cpc_prefixes}
+        log.debug(f"Added CPC prefix filter: {req.filters.cpc_prefixes}")
     
     if req.filters.year_from or req.filters.year_to:
         year_filter: Dict[str, int] = {}
