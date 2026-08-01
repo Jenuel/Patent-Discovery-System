@@ -26,7 +26,7 @@ import asyncio
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 
 import anyio
 
@@ -53,9 +53,9 @@ class Pipeline:
 async def build_pipeline() -> Pipeline:
     embedder = OpenAIEmbedder.from_env()
     qdrant = QdrantHybridStore.from_env()
+    
     retriever = HierarchicalRetriever(
         dense=DenseRetriever(qdrant),
-        sparse=None,
         cfg=HierarchicalConfig(),
     )
     return Pipeline(embedder=embedder, qdrant=qdrant, retriever=retriever)
@@ -199,6 +199,25 @@ def _per_query_rows(
     return rows
 
 
+def union_fieldnames(rows: Sequence[Dict[str, Any]]) -> List[str]:
+    """
+    Column union across all rows, first-seen order preserved.
+
+    Patent and claim rows carry *different* ``@k`` columns by design — patent
+    k stops at 10 because ``HierarchicalConfig.patent_top_k`` is 10, while
+    claim k runs to 20 under a ``claim_top_k`` of 30. So no single row's keys
+    are a superset of the rest, and taking fieldnames from ``rows[0]`` makes
+    ``csv.DictWriter`` raise on every column the first row happens to lack.
+    Pair this with ``restval=""`` so a level that has no value for a given k
+    writes an empty cell instead of failing.
+    """
+    seen: Dict[str, None] = {}
+    for row in rows:
+        for key in row:
+            seen[key] = None
+    return list(seen)
+
+
 def write_reports(
     output_dir: Union[str, Path],
     patent_results: List[QueryResult],
@@ -217,11 +236,11 @@ def write_reports(
 
     per_query_path = output_dir / "retrieval_eval_per_query.csv"
     with open(per_query_path, "w", newline="", encoding="utf-8") as f:
-        fieldnames = list(per_query_rows[0].keys()) if per_query_rows else [
+        fieldnames = union_fieldnames(per_query_rows) or [
             "query_id", "level", "query", "mrr", "has_ground_truth",
             "num_relevant", "num_retrieved",
         ]
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
         writer.writeheader()
         writer.writerows(per_query_rows)
 
@@ -235,8 +254,9 @@ def write_reports(
 
     summary_path = output_dir / "retrieval_eval_summary.csv"
     with open(summary_path, "w", newline="", encoding="utf-8") as f:
-        fieldnames = list(summary_rows[0].keys())
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(
+            f, fieldnames=union_fieldnames(summary_rows), restval=""
+        )
         writer.writeheader()
         writer.writerows(summary_rows)
 
