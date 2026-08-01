@@ -50,6 +50,19 @@ async def lifespan(app: FastAPI):
     except Exception:
         log.warning("BM25 encoder warm-up failed - sparse retrieval may be degraded", exc_info=True)
 
+    if settings.rerank_enabled:
+        from app.services.rerank.reranker import warm_reranker
+
+        try:
+            await warm_reranker(settings.rerank_model)
+            log.info(f"Cross-encoder reranker ready ({settings.rerank_model})")
+        except Exception:
+            log.warning(
+                "Reranker warm-up failed - retrieval will fall back to "
+                "bi-encoder ordering",
+                exc_info=True,
+            )
+
     yield
     
     log.info("Shutting down Patent Discovery System API")

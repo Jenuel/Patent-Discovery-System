@@ -38,6 +38,7 @@ class RAGOrchestrator:
         llm: Optional[GeminiClient] = None,
         policy: Optional[RagPolicy] = None,
         hierarchical_config: Optional[HierarchicalConfig] = None,
+        reranker: Optional[Any] = None,
     ):
         """
         Initialize the RAG orchestrator with all required services.
@@ -49,6 +50,9 @@ class RAGOrchestrator:
             llm:                 Gemini client for answer generation.
             policy:              RAG policy configuration.
             hierarchical_config: Configuration for hierarchical retrieval.
+            reranker:            Cross-encoder reranker (RET-07). Built from
+                                 settings when omitted; pass ``False`` to
+                                 disable explicitly, or an instance to inject.
         """
         # Initialize core services
         self.embedder = embedder or OpenAIEmbedder.from_env()
@@ -59,11 +63,21 @@ class RAGOrchestrator:
         # Initialize retrievers
         self.dense_retriever = DenseRetriever(self.qdrant_store)
 
+        if reranker is None:
+            from app.core.settings import get_settings
+
+            if get_settings().rerank_enabled:
+                from app.services.rerank.reranker import CrossEncoderReranker
+
+                reranker = CrossEncoderReranker.from_env()
+        self.reranker = reranker or None
+
         # Initialize hierarchical retriever
         self.hierarchical_config = hierarchical_config or HierarchicalConfig()
         self.hierarchical_retriever = HierarchicalRetriever(
             dense=self.dense_retriever,
             cfg=self.hierarchical_config,
+            reranker=self.reranker,
         )
 
         # Policy

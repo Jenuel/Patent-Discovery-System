@@ -14,6 +14,9 @@ class Settings(BaseModel):
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
 
+    rerank_enabled: bool = False
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
@@ -27,4 +30,7 @@ def get_settings() -> Settings:
         cors_allow_origins=cors_allow_origins,
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
+        rerank_enabled=os.getenv("RERANK_ENABLED", "false").strip().lower()
+        in ("true", "1", "yes"),
+        rerank_model=os.getenv("RERANK_MODEL", "Xenova/ms-marco-MiniLM-L-6-v2"),
     )
