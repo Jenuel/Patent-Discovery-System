@@ -24,10 +24,19 @@ export const usePatentSearch = () => {
         } catch (err: any) {
             if (err.name === 'CanceledError') return; // ignore aborted requests
             console.error('Search error:', err);
-            setError(err.response?.data?.detail || err.message || 'An error occurred while processing your patent query.');
+            if (err.code === 'ECONNABORTED') {
+                setError('The search timed out after 2 minutes. Try narrowing the query or applying a CPC filter.');
+            } else {
+                setError(err.response?.data?.detail || err.message || 'An error occurred while processing your patent query.');
+            }
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const cancelSearch = () => {
+        abortRef.current?.abort();
+        setIsLoading(false);
     };
 
     const clearResults = () => {
@@ -35,5 +44,5 @@ export const usePatentSearch = () => {
         setError(null);
     };
 
-    return { results, isLoading, error, handleSearch, clearResults };
+    return { results, isLoading, error, handleSearch, cancelSearch, clearResults };
 };

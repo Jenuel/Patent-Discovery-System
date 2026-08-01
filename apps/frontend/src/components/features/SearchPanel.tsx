@@ -5,10 +5,11 @@ import { DEFAULT_FILTERS } from '../../constants';
 
 interface SearchPanelProps {
     onSearch: (query: string, systemDescription: string, filters: SearchFilters) => void;
+    onCancel: () => void;
     isLoading: boolean;
 }
 
-const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
+const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading }) => {
     const [query, setQuery] = useState('');
     const [systemDescription, setSystemDescription] = useState('');
     const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -58,18 +59,29 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
                         </button>
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={isLoading || !query.trim()}
-                        className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
-                    >
-                        {isLoading ? (
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Analyzing...
-                            </div>
-                        ) : 'Discover Patents'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {isLoading && (
+                            <button
+                                type="button"
+                                onClick={onCancel}
+                                className="px-4 py-3 rounded-xl font-semibold text-sm text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all"
+                            >
+                                Cancel
+                            </button>
+                        )}
+                        <button
+                            type="submit"
+                            disabled={isLoading || !query.trim()}
+                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
+                        >
+                            {isLoading ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Analyzing...
+                                </div>
+                            ) : 'Discover Patents'}
+                        </button>
+                    </div>
                 </div>
 
                 {showSystemInput && (

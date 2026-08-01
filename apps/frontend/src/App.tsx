@@ -2,7 +2,7 @@ import { Header, Footer, Hero, SearchPanel, ResultsView, ErrorMessage } from './
 import { usePatentSearch } from './hooks';
 
 function App() {
-    const { results, isLoading, error, handleSearch } = usePatentSearch();
+    const { results, isLoading, error, handleSearch, cancelSearch } = usePatentSearch();
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50">
@@ -16,7 +16,7 @@ function App() {
                         </div>
                     )}
 
-                    <SearchPanel onSearch={handleSearch} isLoading={isLoading} />
+                    <SearchPanel onSearch={handleSearch} onCancel={cancelSearch} isLoading={isLoading} />
                 </section>
 
                 {error && (
