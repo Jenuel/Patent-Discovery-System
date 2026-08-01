@@ -14,14 +14,14 @@ class LLMConfig:
     Env vars:
       GEMINI_API_KEY
       GEMINI_MODEL               (default: gemini-2.5-flash)
-      GEMINI_MAX_OUTPUT_TOKENS   (default: 2048)
+      GEMINI_MAX_OUTPUT_TOKENS   (default: 8192)
       GEMINI_LLM_MAX_RETRIES     (default: 3)
       GEMINI_LLM_BACKOFF_BASE    (default: 0.7)
       GEMINI_TEMPERATURE         (default: 0.7)
     """
     api_key: str
     model: str = "gemini-2.5-flash"
-    max_output_tokens: int = 2048
+    max_output_tokens: int = 8192
     max_retries: int = 3
     backoff_base_seconds: float = 0.7
     temperature: float = 0.7
@@ -70,7 +70,7 @@ class GeminiClient:
             LLMConfig(
                 api_key=os.getenv("GEMINI_API_KEY", ""),
                 model=os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash"),
-                max_output_tokens=int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "2048")),
+                max_output_tokens=int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192")),
                 max_retries=int(os.getenv("GEMINI_LLM_MAX_RETRIES", "3")),
                 backoff_base_seconds=float(os.getenv("GEMINI_LLM_BACKOFF_BASE", "0.7")),
                 temperature=float(os.getenv("GEMINI_TEMPERATURE", "0.7")),
