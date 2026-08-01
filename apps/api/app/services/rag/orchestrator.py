@@ -307,7 +307,14 @@ class RAGOrchestrator:
         prompt = (
             f"Query: {query}\n\n"
             f"Evidence:\n{context}\n\n"
-            f"Based on the evidence above, provide a comprehensive answer to the query."
+            f"Based on the evidence above, provide a comprehensive answer to the query.\n\n"
+            f"Cite every claim you make using the bracketed number of the evidence "
+            f"item it comes from, e.g. [3] or [7][12]. Place the citation "
+            f"immediately after the statement it supports. Cite only numbers "
+            f"between [1] and [{len(evidence)}], and do not cite evidence you did "
+            f"not use. The evidence is ordered by retrieval score, but that "
+            f"ordering is weak — judge relevance from the claim text itself, not "
+            f"from an item's position."
         )
         
         log.debug(f"Calling LLM with prompt length: {len(prompt)} characters")
