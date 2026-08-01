@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { SearchResponse } from '../../types';
 import { SearchMode } from '../../types';
 import EvidenceCard from '../common/EvidenceCard';
@@ -44,27 +46,24 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                             </div>
                             AI Patent Intelligence
                         </h2>
-
-                        <div className="prose prose-slate max-w-none">
-                            <div className="text-slate-700 leading-relaxed text-lg space-y-4">
-                                {data.answer.split('\n').map((para, i) => (
-                                    <p key={i}>{para}</p>
-                                ))}
-                            </div>
+                        <div className="prose prose-slate prose-lg max-w-none prose-headings:font-bold prose-strong:text-slate-900 prose-a:text-indigo-600">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {data.answer}
+                            </ReactMarkdown>
                         </div>
 
                         {data.evidence.length > 0 && (
-                        <div className="mt-8 pt-8 border-t border-slate-100">
-                            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Key Findings</h4>
-                            <ul className="space-y-3">
-                                {data.evidence.slice(0, 3).map((ev, i) => (
-                                    <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
-                                        <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
-                                        <span>Significant overlap detected with <span className="font-semibold text-slate-900">{ev.patentId}</span></span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
+                            <div className="mt-8 pt-8 border-t border-slate-100">
+                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Key Findings</h4>
+                                <ul className="space-y-3">
+                                    {data.evidence.slice(0, 3).map((ev, i) => (
+                                        <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
+                                            <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
+                                            <span>Significant overlap detected with <span className="font-semibold text-slate-900">{ev.patentId}</span></span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         )}
                     </div>
                 </div>
