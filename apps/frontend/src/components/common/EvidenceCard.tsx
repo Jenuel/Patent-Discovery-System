@@ -4,15 +4,13 @@ import type { EvidenceChunk } from '../../types';
 
 interface EvidenceCardProps {
     evidence: EvidenceChunk;
+    /** 1-based position, matching the [n] the LLM is asked to cite. */
     rank: number;
+    /** True when the generated answer cites this item's number. */
+    isCited: boolean;
 }
 
-const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence, rank }) => {
-    const getRankStyle = (position: number) =>
-        position <= 3
-            ? 'text-indigo-700 bg-indigo-50 border-indigo-100'
-            : 'text-slate-500 bg-slate-50 border-slate-100';
-
+const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence, rank, isCited }) => {
     const getSourceBadge = (source: string) => {
         switch (source) {
             case 'reranked': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
@@ -24,14 +22,26 @@ const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence, rank }) => {
     };
 
     return (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow group">
+        <div
+            id={`evidence-${rank}`}
+            className={`rounded-xl p-5 transition-shadow group ${
+                isCited
+                    ? 'bg-white border-2 border-indigo-300 shadow-sm ring-1 ring-indigo-100'
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+            }`}
+        >
             <div className="flex justify-between items-start mb-3">
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">{evidence.patentId}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase ${getRankStyle(rank)}`}>
-                            Rank #{rank}
+                        <span className="font-mono text-xs text-slate-400" title="Citation number used in the answer above">
+                            [{rank}]
                         </span>
+                        <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">{evidence.patentId}</span>
+                        {isCited && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase text-indigo-700 bg-indigo-50 border-indigo-100">
+                                Cited
+                            </span>
+                        )}
                     </div>
                     <h3 className="text-md font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
                         {evidence.title}

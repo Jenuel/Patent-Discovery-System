@@ -11,6 +11,17 @@ interface ResultsViewProps {
 }
 
 const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
+    // The prompt numbers evidence [1..n] and asks the model to cite those
+    // numbers, so the answer's citations map straight onto card positions.
+    const citedIndexes = React.useMemo(() => {
+        const found = new Set<number>();
+        for (const match of data.answer.matchAll(/\[(\d+)\]/g)) {
+            const n = Number(match[1]);
+            if (n >= 1 && n <= data.evidence.length) found.add(n);
+        }
+        return found;
+    }, [data.answer, data.evidence.length]);
+
     const getModeIcon = (mode: SearchMode) => {
         switch (mode) {
             case SearchMode.INFRINGEMENT: return <BrainCircuit className="w-5 h-5" />;
@@ -52,14 +63,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                             </ReactMarkdown>
                         </div>
 
-                        {data.evidence.length > 0 && (
+                        {citedIndexes.size > 0 && (
                             <div className="mt-8 pt-8 border-t border-slate-100">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Key Findings</h4>
+                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Evidence Cited Above</h4>
                                 <ul className="space-y-3">
-                                    {data.evidence.slice(0, 3).map((ev, i) => (
-                                        <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
+                                    {[...citedIndexes].sort((a, b) => a - b).map((n) => (
+                                        <li key={n} className="flex items-start gap-3 text-sm text-slate-600">
                                             <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
-                                            <span>Significant overlap detected with <span className="font-semibold text-slate-900">{ev.patentId}</span></span>
+                                            <span>
+                                                <span className="font-mono text-xs text-indigo-600">[{n}]</span>{' '}
+                                                <span className="font-semibold text-slate-900">{data.evidence[n - 1].patentId}</span>
+                                                {' — '}{data.evidence[n - 1].title}
+                                            </span>
                                         </li>
                                     ))}
                                 </ul>
@@ -72,7 +87,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                     <div className="mb-6 flex items-center justify-between">
                         <h3 className="text-lg font-bold text-slate-800">Citing Evidence & Relevant Prior Art</h3>
                         <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase">
-                            {data.evidence.length} Chunks Retrieved
+                            {citedIndexes.size} cited of {data.evidence.length}
                         </span>
                     </div>
 
@@ -88,7 +103,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                     ) : (
                         <div className="space-y-4">
                             {data.evidence.map((chunk, index) => (
-                                <EvidenceCard key={chunk.patentId + index} evidence={chunk} rank={index + 1} />
+                                <EvidenceCard
+                                    key={chunk.patentId + index}
+                                    evidence={chunk}
+                                    rank={index + 1}
+                                    isCited={citedIndexes.has(index + 1)}
+                                />
                             ))}
                         </div>
                     )}
