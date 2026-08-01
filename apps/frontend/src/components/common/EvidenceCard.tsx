@@ -1,17 +1,17 @@
 import React from 'react';
-import { ExternalLink, Layers, Database, Hash } from 'lucide-react';
+import { ExternalLink, Layers, Hash, Gauge } from 'lucide-react';
 import type { EvidenceChunk } from '../../types';
 
 interface EvidenceCardProps {
     evidence: EvidenceChunk;
+    rank: number;
 }
 
-const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence }) => {
-    const getScoreColor = (score: number) => {
-        if (score > 0.8) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
-        if (score > 0.6) return 'text-amber-600 bg-amber-50 border-amber-100';
-        return 'text-slate-500 bg-slate-50 border-slate-100';
-    };
+const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence, rank }) => {
+    const getRankStyle = (position: number) =>
+        position <= 3
+            ? 'text-indigo-700 bg-indigo-50 border-indigo-100'
+            : 'text-slate-500 bg-slate-50 border-slate-100';
 
     const getSourceBadge = (source: string) => {
         switch (source) {
@@ -27,8 +27,8 @@ const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence }) => {
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">{evidence.patentId}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase ${getScoreColor(evidence.score)}`}>
-                            Match: {(evidence.score * 100).toFixed(0)}%
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase ${getRankStyle(rank)}`}>
+                            Rank #{rank}
                         </span>
                     </div>
                     <h3 className="text-md font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
@@ -53,12 +53,15 @@ const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence }) => {
 
             <div className="flex flex-wrap gap-2 items-center text-[11px] font-medium text-slate-500 border-t border-slate-100 pt-3">
                 <div className="flex items-center gap-1 mr-3">
-                    <Database className="w-3.5 h-3.5" />
-                    <span>Assignee: <span className="text-slate-900">{evidence.assignee}</span></span>
-                </div>
-                <div className="flex items-center gap-1 mr-3">
                     <Layers className="w-3.5 h-3.5" />
                     <span>Level: <span className="text-slate-900">{evidence.level}</span></span>
+                </div>
+                <div
+                    className="flex items-center gap-1 mr-3"
+                    title="Hybrid dense+sparse fusion score. Comparable within this result set only — not a similarity percentage."
+                >
+                    <Gauge className="w-3.5 h-3.5" />
+                    <span>Score: <span className="text-slate-900 tabular-nums">{evidence.score.toFixed(3)}</span></span>
                 </div>
                 <div className="flex items-center gap-1 mr-3">
                     <Hash className="w-3.5 h-3.5" />

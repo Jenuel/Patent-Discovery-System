@@ -15,7 +15,6 @@ export const buildPayload = (
         ...(filters.cpcCodes && { cpc_prefixes: filters.cpcCodes.split(',').map(s => s.trim()).filter(Boolean) }),
         ...(filters.yearFrom && { year_from: parseInt(filters.yearFrom, 10) }),
         ...(filters.yearTo && { year_to: parseInt(filters.yearTo, 10) }),
-        ...(filters.assignees && { assignees: filters.assignees.split(',').map(s => s.trim()).filter(Boolean) }),
     };
 
     if (Object.keys(backendFilters).length > 0) payload.filters = backendFilters;

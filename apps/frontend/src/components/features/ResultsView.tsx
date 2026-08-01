@@ -59,7 +59,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                                 {data.evidence.slice(0, 3).map((ev, i) => (
                                     <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
                                         <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
-                                        <span>Significant overlap detected with <span className="font-semibold text-slate-900">{ev.patentId}</span> ({ev.assignee})</span>
+                                        <span>Significant overlap detected with <span className="font-semibold text-slate-900">{ev.patentId}</span></span>
                                     </li>
                                 ))}
                             </ul>
@@ -77,7 +77,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
 
                     <div className="space-y-4">
                         {data.evidence.map((chunk, index) => (
-                            <EvidenceCard key={index} evidence={chunk} />
+                            <EvidenceCard key={chunk.patentId + index} evidence={chunk} rank={index + 1} />
                         ))}
                     </div>
 

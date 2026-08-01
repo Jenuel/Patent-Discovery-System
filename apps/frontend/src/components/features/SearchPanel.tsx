@@ -88,7 +88,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
                 )}
 
                 {isFiltersOpen && (
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-slate-100 pt-6 animate-in slide-in-from-top-2 duration-200">
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-6 animate-in slide-in-from-top-2 duration-200">
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-slate-500 uppercase">Priority Date Range</label>
                             <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">CPC Codes / Class</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase">CPC Class</label>
                             <input
                                 type="text"
                                 placeholder="e.g. G06N, H04L"
@@ -118,18 +118,11 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, isLoading }) => {
                                 value={filters.cpcCodes}
                                 onChange={(e) => setFilters({ ...filters, cpcCodes: e.target.value })}
                             />
+                            <p className="text-[11px] text-slate-400">
+                                4-character section prefixes, comma separated.
+                            </p>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Assignee / Company</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. Google, Apple"
-                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                value={filters.assignees}
-                                onChange={(e) => setFilters({ ...filters, assignees: e.target.value })}
-                            />
-                        </div>
-                        <div className="md:col-span-3 space-y-2">
+                        <div className="md:col-span-2 space-y-2">
                             <div className="flex justify-between items-center">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Top K Candidates</label>
                                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{filters.topK} Patents</span>

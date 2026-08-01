@@ -4,7 +4,6 @@ export interface EvidenceChunk {
     score: number;
     sourceType: 'dense' | 'sparse' | 'hybrid';
     textSnippet: string;
-    assignee: string;
     year: string;
     level: 'Patent' | 'Claim' | 'Limitation';
 }
@@ -25,7 +24,6 @@ export interface SearchFilters {
     yearFrom?: string;
     yearTo?: string;
     cpcCodes?: string;
-    assignees?: string;
     topK: number;
 }
 
@@ -39,11 +37,4 @@ export interface BackendFilters {
     cpc_prefixes?: string[];
     year_from?: number;
     year_to?: number;
-    assignees?: string[];
-}
-
-export interface SearchResponse {
-    answer: string;
-    mode: SearchMode;
-    evidence: EvidenceChunk[];
 }

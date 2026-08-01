@@ -21,7 +21,6 @@ export const mapSearchResponse = (data: any): SearchResponse => ({
         score: item.score ?? 0,
         sourceType: item.source ?? 'hybrid',
         textSnippet: item.text ?? '',
-        assignee: item.metadata?.assignee ?? 'Unknown Assignee',
         year: item.metadata?.year?.toString() ?? 'Unknown Year',
         level: mapLevel(item.level),
     }))

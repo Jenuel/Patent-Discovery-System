@@ -9,7 +9,6 @@ export const DEFAULT_FILTERS = {
     yearFrom: '',
     yearTo: '',
     cpcCodes: '',
-    assignees: '',
     topK: 30
 } as const;
 
