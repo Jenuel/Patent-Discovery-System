@@ -116,10 +116,6 @@ def _build_metadata_filter(req: QueryRequest) -> Dict[str, Any]:
             year_filter["$lte"] = req.filters.year_to
         metadata_filter["year"] = year_filter
         log.debug(f"Added year filter: {year_filter}")
-    
-    if req.filters.assignees:
-        metadata_filter["assignee"] = {"$in": req.filters.assignees}
-        log.debug(f"Added assignee filter: {req.filters.assignees}")
-    
+
     log.debug(f"Final metadata filter: {metadata_filter}")
     return metadata_filter
