@@ -2,7 +2,7 @@ import React from 'react';
 import type { SearchResponse } from '../../types';
 import { SearchMode } from '../../types';
 import EvidenceCard from '../common/EvidenceCard';
-import { Sparkles, BrainCircuit, History, ArrowRight } from 'lucide-react';
+import { Sparkles, BrainCircuit, History, ArrowRight, SearchX } from 'lucide-react';
 
 interface ResultsViewProps {
     data: SearchResponse;
@@ -53,6 +53,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                             </div>
                         </div>
 
+                        {data.evidence.length > 0 && (
                         <div className="mt-8 pt-8 border-t border-slate-100">
                             <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Key Findings</h4>
                             <ul className="space-y-3">
@@ -64,6 +65,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                                 ))}
                             </ul>
                         </div>
+                        )}
                     </div>
                 </div>
 
@@ -75,15 +77,22 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                         </span>
                     </div>
 
-                    <div className="space-y-4">
-                        {data.evidence.map((chunk, index) => (
-                            <EvidenceCard key={chunk.patentId + index} evidence={chunk} rank={index + 1} />
-                        ))}
-                    </div>
-
-                    <button className="w-full mt-6 py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-semibold hover:bg-slate-50 hover:border-indigo-300 hover:text-indigo-600 transition-all">
-                        Load More Results
-                    </button>
+                    {data.evidence.length === 0 ? (
+                        <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center">
+                            <SearchX className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                            <h4 className="font-semibold text-slate-800 mb-1">No matching evidence</h4>
+                            <p className="text-sm text-slate-500 max-w-sm mx-auto">
+                                Nothing in the corpus matched this query. Widening or clearing the
+                                CPC and year filters is usually what brings results back.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {data.evidence.map((chunk, index) => (
+                                <EvidenceCard key={chunk.patentId + index} evidence={chunk} rank={index + 1} />
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
