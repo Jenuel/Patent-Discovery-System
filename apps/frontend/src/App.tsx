@@ -1,5 +1,5 @@
 import { Topbar } from './components/Topbar';
-import Landing from './components/Landing';
+import { Landing } from './components/Landing';
 import Composer from './components/Composer';
 import Results from './components/Results';
 import ErrorMessage from './components/states';

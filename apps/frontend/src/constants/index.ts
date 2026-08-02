@@ -10,27 +10,34 @@ export const EMPTY_COMPOSER: ComposerState = {
     yearTo: '',
 };
 
-export const FEATURES = [
+export const HERO = {
+    kicker: 'PRIOR ART · FREEDOM TO OPERATE · LANDSCAPES',
+    title: "Know what's already patented.",
+    lede:
+        'Describe your invention in plain English. We read the claims of 142M filings ' +
+        "and tell you which ones stand in your way — and which don't.",
+} as const;
+
+export const CAPABILITIES = [
     {
-        id: 'prior-art',
-        title: 'Prior Art Search',
-        description: 'Find blocking patents and similar inventions with semantic understanding.',
-        icon: 'ShieldAlert',
-        color: 'indigo'
+        title: 'A plain-English verdict',
+        body: 'Clear, crowded, or blocked — with the reasoning shown.',
     },
     {
-        id: 'infringement',
-        title: 'Infringement Risk',
-        description: 'Input your system description to detect potential claim overlap automatically.',
-        icon: 'Zap',
-        color: 'rose'
+        title: 'Every claim it relies on',
+        body: 'Each sentence links to the exact passage behind it.',
     },
     {
-        id: 'landscape',
-        title: 'Landscape Trends',
-        description: 'Understand the competitive landscape and key assignees in any technology field.',
-        icon: 'BookOpenCheck',
-        color: 'emerald'
-    }
+        title: 'A report for your counsel',
+        body: 'Shortlist what matters, export as PDF or DOCX.',
+    },
+] as const;
+
+/* Carries the same corpus figure as HERO above — retune both together. */
+export const STATS = [
+    { value: '142M', label: 'filings across 34 offices' },
+    { value: '40s', label: 'to a readable assessment' },
+    { value: 'Claim-level', label: 'retrieval, not abstract keywords' },
+    { value: 'Every cite', label: 'traceable to its source passage' },
 ] as const;
 
