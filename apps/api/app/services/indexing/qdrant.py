@@ -45,6 +45,11 @@ def _doc_id_to_uint64(doc_id: str) -> int:
 # server-side by Qdrant (collection uses ``Modifier.IDF``).
 _BM25_MODEL_NAME = "Qdrant/bm25"
 
+# Server-side fusion strategies Qdrant can apply over the prefetch arms.
+# RRF fuses by rank, DBSF by distribution-normalised score — the two compared
+# in EVAL_ABLATION.md Test 3.
+FUSION_MODES = {"rrf": Fusion.RRF, "dbsf": Fusion.DBSF}
+
 _bm25_encoder: Optional[Any] = None
 _bm25_encoder_lock = threading.Lock()
 
@@ -513,6 +518,9 @@ class QdrantHybridStore:
         top_k: int = 20,
         metadata_filter: Optional[Dict[str, Any]] = None,
         prefetch_multiplier: int = 3,
+        fusion: str = "rrf",
+        dense_prefetch_limit: Optional[int] = None,
+        sparse_prefetch_limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Hybrid patent search using Qdrant's native Prefetch + RRF fusion.
@@ -521,8 +529,8 @@ class QdrantHybridStore:
           1. BM25 sparse retrieval (``bm25`` named vector)
           2. Dense cosine retrieval (``dense`` named vector)
 
-        Qdrant fuses both ranked lists with Reciprocal Rank Fusion (RRF)
-        server-side, so no Python-level fusion is needed.
+        Qdrant fuses both ranked lists server-side, so no Python-level fusion
+        is needed.
 
         Args:
             query_text:          Raw query string (encoded to BM25 sparse vector).
@@ -530,9 +538,19 @@ class QdrantHybridStore:
             top_k:               Number of results to return.
             metadata_filter:     Optional payload filters.
             prefetch_multiplier: Each arm fetches ``top_k * multiplier`` candidates
-                                 so RRF has room to reorder. With both arms limited
-                                 to ``top_k``, a document ranked just outside one
-                                 arm's cut-off can never be rescued by the other.
+                                 so fusion has room to reorder. With both arms
+                                 limited to ``top_k``, a document ranked just
+                                 outside one arm's cut-off can never be rescued
+                                 by the other.
+            fusion:              ``"rrf"`` (rank-based, the default and the
+                                 production setting) or ``"dbsf"``
+                                 (distribution-based score fusion).
+            dense_prefetch_limit:  Absolute candidate count for the dense arm,
+                                 overriding ``prefetch_multiplier``.
+            sparse_prefetch_limit: Absolute candidate count for the BM25 arm.
+                                 Set independently of the dense arm because the
+                                 two are swept separately in EVAL_ABLATION.md
+                                 Test 3 — dense held at 60 while sparse varies.
 
         Returns:
             List of dicts with ``id``, ``score``, and ``metadata``.
@@ -544,7 +562,24 @@ class QdrantHybridStore:
         if top_k <= 0:
             raise ValueError("top_k must be > 0")
 
-        log.info(f"[QDRANT] Hybrid patent search (top_k={top_k})")
+        fusion_key = fusion.lower()
+        if fusion_key not in FUSION_MODES:
+            # Falling back to RRF on a typo would silently report a DBSF sweep
+            # as an RRF one — the ablation would be wrong rather than absent.
+            raise ValueError(
+                f"fusion must be one of {sorted(FUSION_MODES)}, got {fusion!r}"
+            )
+        for name, limit in (
+            ("dense_prefetch_limit", dense_prefetch_limit),
+            ("sparse_prefetch_limit", sparse_prefetch_limit),
+        ):
+            # Same reasoning as the fusion check: a 0 quietly widened back to
+            # the multiplier default would report a swept config as the
+            # unswept one. To retire an arm, pick a single-arm search instead.
+            if limit is not None and limit <= 0:
+                raise ValueError(f"{name} must be > 0 when set, got {limit}")
+
+        log.info(f"[QDRANT] Hybrid patent search (top_k={top_k}, fusion={fusion_key})")
 
         query_sparse_vec = await _encode_sparse_query(query_text)
 
@@ -564,6 +599,12 @@ class QdrantHybridStore:
             qdrant_filter = self._build_filter(metadata_filter)
 
         prefetch_limit = max(top_k, top_k * prefetch_multiplier)
+        sparse_limit = (
+            sparse_prefetch_limit if sparse_prefetch_limit is not None else prefetch_limit
+        )
+        dense_limit = (
+            dense_prefetch_limit if dense_prefetch_limit is not None else prefetch_limit
+        )
 
         results = await self._client.query_points(
             collection_name=self.cfg.patent_collection_name,
@@ -571,17 +612,17 @@ class QdrantHybridStore:
                 Prefetch(
                     query=query_sparse_vec,
                     using=self.SPARSE_VECTOR_NAME,
-                    limit=prefetch_limit,
+                    limit=sparse_limit,
                     filter=qdrant_filter,
                 ),
                 Prefetch(
                     query=query_dense_vector,
                     using=self.DENSE_VECTOR_NAME,
-                    limit=prefetch_limit,
+                    limit=dense_limit,
                     filter=qdrant_filter,
                 ),
             ],
-            query=FusionQuery(fusion=Fusion.RRF),
+            query=FusionQuery(fusion=FUSION_MODES[fusion_key]),
             limit=top_k,
             with_payload=True,
         )

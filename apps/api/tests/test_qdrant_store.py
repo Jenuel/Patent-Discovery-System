@@ -117,6 +117,146 @@ class FusionQueryTests(unittest.TestCase):
         self.assertIsInstance(wrapped, FusionQuery)
 
 
+class _RecordingClient(FakeClient):
+    """Captures the query_points request search_hybrid builds."""
+
+    def __init__(self):
+        super().__init__()
+        self.query_kwargs = None
+
+    async def query_points(self, **kwargs):
+        self.query_kwargs = kwargs
+
+        class Result:
+            points: List[Any] = []
+
+        return Result()
+
+
+class _StubSparseQuery:
+    """Stands in for the module-level BM25 query encoder.
+
+    fastembed downloads an 80 MB model on first use, so the encoder is swapped
+    out rather than invoked — these tests are about the request Qdrant is sent,
+    not about tokenisation.
+    """
+
+    def __init__(self, store_module, vector):
+        self.module = store_module
+        self.vector = vector
+
+    def __enter__(self):
+        from qdrant_client.models import SparseVector
+
+        self.original = self.module._encode_sparse_query
+
+        async def fake(_query_text):
+            return SparseVector(indices=[1], values=[1.0]) if self.vector else None
+
+        self.module._encode_sparse_query = fake
+        return self
+
+    def __exit__(self, *exc):
+        self.module._encode_sparse_query = self.original
+        return False
+
+
+class HybridFusionTests(unittest.IsolatedAsyncioTestCase):
+    """EVAL_ABLATION.md Test 3 varies fusion strategy and per-arm prefetch."""
+
+    async def _search(self, **kwargs):
+        from app.services.indexing import qdrant as qdrant_module
+
+        client = _RecordingClient()
+        store = _store(client)
+        with _StubSparseQuery(qdrant_module, vector=True):
+            await store.search_hybrid(
+                query_text="battery cathode",
+                query_dense_vector=[0.1, 0.2],
+                **kwargs,
+            )
+        return client.query_kwargs
+
+    async def test_rrf_is_the_default(self):
+        from qdrant_client.models import Fusion
+
+        kwargs = await self._search(top_k=10)
+        self.assertEqual(kwargs["query"], FusionQuery(fusion=Fusion.RRF))
+
+    async def test_dbsf_is_selectable(self):
+        from qdrant_client.models import Fusion
+
+        kwargs = await self._search(top_k=10, fusion="dbsf")
+        self.assertEqual(kwargs["query"], FusionQuery(fusion=Fusion.DBSF))
+
+    async def test_both_arms_share_the_multiplier_by_default(self):
+        kwargs = await self._search(top_k=20, prefetch_multiplier=3)
+        limits = [p.limit for p in kwargs["prefetch"]]
+        self.assertEqual(limits, [60, 60])
+
+    async def test_arms_can_be_limited_independently(self):
+        """Test 3 holds dense at 60 while sweeping the sparse arm."""
+        kwargs = await self._search(
+            top_k=20, dense_prefetch_limit=60, sparse_prefetch_limit=20
+        )
+        sparse, dense = kwargs["prefetch"]
+        self.assertEqual(sparse.using, QdrantHybridStore.SPARSE_VECTOR_NAME)
+        self.assertEqual(sparse.limit, 20)
+        self.assertEqual(dense.using, QdrantHybridStore.DENSE_VECTOR_NAME)
+        self.assertEqual(dense.limit, 60)
+
+    async def test_zero_prefetch_raises_rather_than_widening_to_the_default(self):
+        """Same reasoning as the fusion check — a silently unswept config."""
+        store = _store(_RecordingClient())
+        with self.assertRaises(ValueError):
+            await store.search_hybrid(
+                query_text="q", query_dense_vector=[0.1], sparse_prefetch_limit=0
+            )
+
+    async def test_unknown_fusion_raises_rather_than_falling_back_to_rrf(self):
+        """A silent fallback would report a DBSF sweep as an RRF one."""
+        store = _store(_RecordingClient())
+        with self.assertRaises(ValueError):
+            await store.search_hybrid(
+                query_text="q", query_dense_vector=[0.1], fusion="reciprocal"
+            )
+
+    async def test_fusion_is_validated_before_the_encoder_is_touched(self):
+        """Validation must not cost an 80 MB model download to reach."""
+        from app.services.indexing import qdrant as qdrant_module
+
+        calls = []
+        original = qdrant_module._encode_sparse_query
+
+        async def tripwire(_q):
+            calls.append(_q)
+            return None
+
+        qdrant_module._encode_sparse_query = tripwire
+        try:
+            with self.assertRaises(ValueError):
+                await _store(_RecordingClient()).search_hybrid(
+                    query_text="q", query_dense_vector=[0.1], fusion="nope"
+                )
+        finally:
+            qdrant_module._encode_sparse_query = original
+
+        self.assertEqual(calls, [])
+
+    async def test_termless_query_still_falls_back_to_dense_only(self):
+        from app.services.indexing import qdrant as qdrant_module
+
+        client = _RecordingClient()
+        store = _store(client)
+        with _StubSparseQuery(qdrant_module, vector=False):
+            await store.search_hybrid(
+                query_text="the of and", query_dense_vector=[0.1, 0.2], top_k=5
+            )
+
+        self.assertNotIn("prefetch", client.query_kwargs)
+        self.assertEqual(client.query_kwargs["using"], QdrantHybridStore.DENSE_VECTOR_NAME)
+
+
 class ConfigValidationTests(unittest.TestCase):
     def test_missing_url_raises(self):
         with self.assertRaises(ValueError):
