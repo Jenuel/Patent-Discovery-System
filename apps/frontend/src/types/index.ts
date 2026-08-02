@@ -47,6 +47,14 @@ export interface QueryRequest {
     filters?: QueryFilters;
 }
 
+/** Client-side narrowing of an already-returned evidence list. */
+export interface ResultFilters {
+    level: string;
+    source: string;
+    minScore: number;
+    cpcPrefix: string | null;
+}
+
 /** What the composer collects before it is shaped into a QueryRequest. */
 export interface ComposerState {
     query: string;

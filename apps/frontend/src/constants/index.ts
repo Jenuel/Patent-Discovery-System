@@ -1,6 +1,13 @@
-import type { ComposerState } from '../types';
+import type { ComposerState, ResultFilters } from '../types';
 
 export const APP_NAME = { head: 'Patent', tail: 'Discovery' } as const;
+
+export const EMPTY_RESULT_FILTERS: ResultFilters = {
+    level: 'all',
+    source: 'all',
+    minScore: 0,
+    cpcPrefix: null,
+};
 
 /** Where a patent number resolves when the row's "Open patent" is followed. */
 export const PATENT_URL = (patentId: string) =>

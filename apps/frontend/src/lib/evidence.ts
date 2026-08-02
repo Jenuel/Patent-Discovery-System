@@ -1,4 +1,4 @@
-import type { EvidenceItem } from '../types';
+import type { EvidenceItem, ResultFilters } from '../types';
 
 /* ── field readers ─────────────────────────────────────────────────────────
    `metadata` is whatever the chunk document carried, so every read below is a
@@ -61,3 +61,103 @@ export const formatScore = (score: number): string => score.toFixed(4);
 
 export const barWidth = (score: number): string =>
     `${Math.max(0, Math.min(100, Math.round(score * 100)))}%`;
+
+/* ── facets ───────────────────────────────────────────────────────────── */
+
+const LEVEL_ORDER = ['claim', 'limitation', 'patent'];
+const SOURCE_ORDER = ['reranked', 'hybrid', 'dense', 'sparse'];
+
+const orderedDistinct = (values: string[], order: string[]): string[] => {
+    const seen = [...new Set(values.filter(Boolean).map((v) => v.toLowerCase()))];
+    return seen.sort((a, b) => {
+        const ai = order.indexOf(a);
+        const bi = order.indexOf(b);
+        if (ai === -1 && bi === -1) return a.localeCompare(b);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+    });
+};
+
+/** Chip values are read off the payload rather than hardcoded, so a response
+ *  that only ever contains claims does not offer a dead `patent` chip. */
+export const levelOptions = (evidence: EvidenceItem[]): string[] => [
+    'all',
+    ...orderedDistinct(evidence.map((e) => e.level), LEVEL_ORDER),
+];
+
+export const sourceOptions = (evidence: EvidenceItem[]): string[] => [
+    'all',
+    ...orderedDistinct(evidence.map((e) => e.source), SOURCE_ORDER),
+];
+
+export interface CpcFacet {
+    /** `G06N3/*` for a single subgroup, `G06F*` when subgroups in a section split. */
+    label: string;
+    /** The literal prefix a code must start with to belong to this facet. */
+    prefix: string;
+    /** Documents carrying at least one code in this facet — not codes. */
+    count: number;
+}
+
+/**
+ * CPC codes seen in the result set, grouped one entry per subgroup (`G06N3/*`),
+ * collapsed to the 4-character section (`G06F*`) when a section contributes more
+ * than one. The corpus stores codes unpunctuated (`G06F1730259`), where there is
+ * no subgroup boundary to read — those group at the section, so a label never
+ * prints a whole code as if it were one.
+ */
+export const cpcFacets = (evidence: EvidenceItem[]): CpcFacet[] => {
+    const sections = new Map<string, Set<string>>();
+
+    for (const item of evidence) {
+        for (const code of readCpcCodes(item)) {
+            if (code.length < 4) continue;
+            const section = code.slice(0, 4);
+            // Only a punctuated code tells us where the subgroup ends.
+            const subgroup = code.includes('/') ? code.split('/')[0] : section;
+            if (!sections.has(section)) sections.set(section, new Set());
+            sections.get(section)!.add(subgroup);
+        }
+    }
+
+    const facets: CpcFacet[] = [];
+
+    for (const [section, subgroups] of sections) {
+        const [only] = [...subgroups];
+        const collapse = subgroups.size > 1 || only === section;
+        facets.push(
+            collapse
+                ? { label: `${section}*`, prefix: section, count: 0 }
+                : { label: `${only}/*`, prefix: only, count: 0 },
+        );
+    }
+
+    for (const facet of facets) {
+        facet.count = evidence.filter((item) =>
+            readCpcCodes(item).some((code) => code.startsWith(facet.prefix)),
+        ).length;
+    }
+
+    return facets
+        .filter((f) => f.count > 0)
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+};
+
+/* ── narrowing ────────────────────────────────────────────────────────── */
+
+export const applyFilters = (
+    evidence: EvidenceItem[],
+    filters: ResultFilters,
+): EvidenceItem[] =>
+    evidence.filter((item) => {
+        if (filters.level !== 'all' && item.level?.toLowerCase() !== filters.level) return false;
+        if (filters.source !== 'all' && item.source?.toLowerCase() !== filters.source) return false;
+        // 1e-9 so a slider step landing exactly on a score keeps that score in.
+        if (item.score < filters.minScore - 1e-9) return false;
+        if (filters.cpcPrefix) {
+            const codes = readCpcCodes(item);
+            if (!codes.some((code) => code.startsWith(filters.cpcPrefix!))) return false;
+        }
+        return true;
+    });
