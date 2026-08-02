@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AssessmentRail } from './AssessmentRail';
 import { EvidenceRow } from './EvidenceRow';
+import { NoEvidenceState, SkeletonList } from './states';
 import { citationsFor } from '../lib/citations';
 import { modeLabel } from '../lib/evidence';
 import type { QueryResponse } from '../types';
@@ -57,6 +58,10 @@ export const Results = ({ query, response, loading, onEditQuery }: ResultsProps)
                         </div>
                         <span className="evidence__sort">sorted by score ↓</span>
                     </div>
+
+                    {loading && <SkeletonList />}
+
+                    {!loading && evidence.length === 0 && <NoEvidenceState onEdit={onEditQuery} />}
 
                     {!loading && evidence.length > 0 && (
                         <div className="evidence__list" ref={listRef}>

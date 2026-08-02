@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Topbar } from './components/Topbar';
 import { Landing } from './components/Landing';
 import { Results } from './components/Results';
+import { ErrorState } from './components/states';
 import { EMPTY_COMPOSER } from './constants';
 import { usePatentSearch } from './hooks/usePatentSearch';
 import type { ComposerState } from './types';
@@ -36,7 +37,9 @@ function App() {
         <div className="app">
             <Topbar onHome={home} />
 
-            {view === 'results' && status !== 'error' ? (
+            {view === 'results' && status === 'error' ? (
+                <ErrorState message={error ?? 'The query failed.'} onRetry={editQuery} />
+            ) : view === 'results' ? (
                 <Results
                     // Each run gets a fresh view — nothing carried over from the last.
                     key={runId}
