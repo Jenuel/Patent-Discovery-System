@@ -37,3 +37,25 @@ export const readCpcCodes = (item: EvidenceItem): string[] => {
     if (codes.length) return codes;
     return asStringList(item.metadata.cpc_prefix);
 };
+
+/* ── row labels ───────────────────────────────────────────────────────── */
+
+export const levelLabel = (item: EvidenceItem): string => {
+    if (item.level?.toLowerCase() === 'claim') {
+        return item.claim_no != null ? `CLAIM ${item.claim_no}` : 'CLAIM';
+    }
+    return `${(item.level || 'patent').toUpperCase()} LEVEL`;
+};
+
+export const isClaimLevel = (item: EvidenceItem): boolean =>
+    item.level?.toLowerCase() === 'claim';
+
+/** The reranked arm is the one the design tints — the scored-by-model pass. */
+export const isReranked = (item: EvidenceItem): boolean =>
+    item.source?.toLowerCase() === 'reranked';
+
+/** Four decimals — retrieval scores separate late. */
+export const formatScore = (score: number): string => score.toFixed(4);
+
+export const barWidth = (score: number): string =>
+    `${Math.max(0, Math.min(100, Math.round(score * 100)))}%`;

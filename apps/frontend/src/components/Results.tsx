@@ -2,7 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { QueryResponse } from '../types';
-import EvidenceCard from './EvidenceRow';
+import { EvidenceRow } from './EvidenceRow';
 import { citationsFor } from '../lib/citations';
 import { Sparkles, BrainCircuit, History, ArrowRight, SearchX } from 'lucide-react';
 
@@ -21,10 +21,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
         () => citationsFor(data.answer, data.evidence),
         [data.answer, data.evidence],
     );
-    const citedOrdinals = React.useMemo(
-        () => new Set(citations.map((c) => c.ordinal)),
-        [citations],
-    );
+    const [activeChunk, setActiveChunk] = React.useState<string | null>(null);
 
     const getModeIcon = (mode: string) => {
         switch (mode) {
@@ -105,13 +102,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                             </p>
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                        <div className="evidence__list">
                             {data.evidence.map((chunk, index) => (
-                                <EvidenceCard
+                                <EvidenceRow
                                     key={chunk.chunk_id}
-                                    evidence={chunk}
-                                    rank={index + 1}
-                                    isCited={citedOrdinals.has(index + 1)}
+                                    item={chunk}
+                                    ordinal={index + 1}
+                                    active={activeChunk === chunk.chunk_id}
+                                    onSelect={() => setActiveChunk(chunk.chunk_id)}
                                 />
                             ))}
                         </div>

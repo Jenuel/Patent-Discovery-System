@@ -2,6 +2,10 @@ import type { ComposerState } from '../types';
 
 export const APP_NAME = { head: 'Patent', tail: 'Discovery' } as const;
 
+/** Where a patent number resolves when the row's "Open patent" is followed. */
+export const PATENT_URL = (patentId: string) =>
+    `https://patents.google.com/patent/${encodeURIComponent(patentId)}`;
+
 export const EMPTY_COMPOSER: ComposerState = {
     query: '',
     systemDescription: '',
