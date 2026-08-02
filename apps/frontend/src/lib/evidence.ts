@@ -54,6 +54,8 @@ export const isClaimLevel = (item: EvidenceItem): boolean =>
 export const isReranked = (item: EvidenceItem): boolean =>
     item.source?.toLowerCase() === 'reranked';
 
+export const modeLabel = (mode: string): string => mode.replace(/_/g, ' ').toUpperCase();
+
 /** Four decimals — retrieval scores separate late. */
 export const formatScore = (score: number): string => score.toFixed(4);
 

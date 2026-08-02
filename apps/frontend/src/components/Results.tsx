@@ -1,123 +1,85 @@
-import React from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import type { QueryResponse } from '../types';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { AssessmentRail } from './AssessmentRail';
 import { EvidenceRow } from './EvidenceRow';
 import { citationsFor } from '../lib/citations';
-import { Sparkles, BrainCircuit, History, ArrowRight, SearchX } from 'lucide-react';
+import { modeLabel } from '../lib/evidence';
+import type { QueryResponse } from '../types';
 
-/** The API names the mode; the heading spells it. Anything else is prior art. */
-const MODE_LABEL: Record<string, string> = {
-    infringement: 'Infringement',
-    landscape: 'Landscape',
-};
-
-interface ResultsViewProps {
-    data: QueryResponse;
+interface ResultsProps {
+    query: string;
+    response: QueryResponse | null;
+    loading: boolean;
+    onEditQuery: () => void;
 }
 
-const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
-    const citations = React.useMemo(
-        () => citationsFor(data.answer, data.evidence),
-        [data.answer, data.evidence],
-    );
-    const [activeChunk, setActiveChunk] = React.useState<string | null>(null);
+export const Results = ({ query, response, loading, onEditQuery }: ResultsProps) => {
+    const [activeChunkId, setActiveChunkId] = useState<string | null>(null);
+    const listRef = useRef<HTMLDivElement | null>(null);
 
-    const getModeIcon = (mode: string) => {
-        switch (mode) {
-            case 'infringement': return <BrainCircuit className="w-5 h-5" />;
-            case 'landscape': return <History className="w-5 h-5" />;
-            default: return <Sparkles className="w-5 h-5" />;
-        }
-    };
+    const evidence = useMemo(() => response?.evidence ?? [], [response]);
+    const answer = response?.answer ?? '';
+    const citations = useMemo(() => citationsFor(answer, evidence), [answer, evidence]);
 
-    const getModeColor = (mode: string) => {
-        switch (mode) {
-            case 'infringement': return 'bg-rose-50 text-rose-700 border-rose-100';
-            case 'landscape': return 'bg-amber-50 text-amber-700 border-amber-100';
-            default: return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-        }
-    };
+    const jumpTo = useCallback((chunkId: string) => {
+        setActiveChunkId(chunkId);
+        const list = listRef.current;
+        if (!list) return;
+        const el = list.querySelector<HTMLElement>(`[data-chunk-id="${CSS.escape(chunkId)}"]`);
+        if (el) list.scrollTo({ top: Math.max(0, el.offsetTop - 10), behavior: 'smooth' });
+    }, []);
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <main className="results">
+            <div className="queryBar">
+                {response && !loading && (
+                    <span className="queryBar__mode">{modeLabel(response.mode)}</span>
+                )}
+                <span className="queryBar__text" title={query}>
+                    {query}
+                </span>
+                <button type="button" className="queryBar__edit" onClick={onEditQuery}>
+                    Edit query
+                </button>
+            </div>
 
-                <div className="lg:col-span-5 space-y-6">
-                    <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4">
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${getModeColor(data.mode)}`}>
-                                {getModeIcon(data.mode)}
-                                {MODE_LABEL[data.mode] ?? 'Prior Art'} Analysis
-                            </div>
+            <div className="results__body">
+                <div className="evidence">
+                    <div className="evidence__head">
+                        <div className="evidence__count">
+                            <span className="evidence__countN">
+                                {loading
+                                    ? 'Reading the claims…'
+                                    : `${evidence.length} evidence chunks`}
+                            </span>
+                            <span className="evidence__countSub">
+                                level · source · score · cpc, straight off the payload
+                            </span>
                         </div>
-
-                        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
-                            <div className="p-2 bg-indigo-600 rounded-lg">
-                                <Sparkles className="w-5 h-5 text-white" />
-                            </div>
-                            AI Patent Intelligence
-                        </h2>
-                        <div className="prose prose-slate prose-lg max-w-none prose-headings:font-bold prose-strong:text-slate-900 prose-a:text-indigo-600">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {data.answer}
-                            </ReactMarkdown>
-                        </div>
-
-                        {citations.length > 0 && (
-                            <div className="mt-8 pt-8 border-t border-slate-100">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Evidence Cited Above</h4>
-                                <ul className="space-y-3">
-                                    {citations.map((citation) => (
-                                        <li key={citation.chunkId} className="flex items-start gap-3 text-sm text-slate-600">
-                                            <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
-                                            <span>
-                                                <span className="font-mono text-xs text-indigo-600">{citation.label}</span>{' '}
-                                                <span className="font-semibold text-slate-900">{citation.patentId}</span>
-                                                {' — '}{data.evidence[citation.ordinal - 1].title ?? 'Unknown Title'}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="lg:col-span-7">
-                    <div className="mb-6 flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-slate-800">Citing Evidence & Relevant Prior Art</h3>
-                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase">
-                            {citations.length} cited of {data.evidence.length}
-                        </span>
+                        <span className="evidence__sort">sorted by score ↓</span>
                     </div>
 
-                    {data.evidence.length === 0 ? (
-                        <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center">
-                            <SearchX className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                            <h4 className="font-semibold text-slate-800 mb-1">No matching evidence</h4>
-                            <p className="text-sm text-slate-500 max-w-sm mx-auto">
-                                Nothing in the corpus matched this query. Widening or clearing the
-                                CPC and year filters is usually what brings results back.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="evidence__list">
-                            {data.evidence.map((chunk, index) => (
+                    {!loading && evidence.length > 0 && (
+                        <div className="evidence__list" ref={listRef}>
+                            {evidence.map((item, index) => (
                                 <EvidenceRow
-                                    key={chunk.chunk_id}
-                                    item={chunk}
+                                    key={item.chunk_id}
+                                    item={item}
                                     ordinal={index + 1}
-                                    active={activeChunk === chunk.chunk_id}
-                                    onSelect={() => setActiveChunk(chunk.chunk_id)}
+                                    active={activeChunkId === item.chunk_id}
+                                    onSelect={() => setActiveChunkId(item.chunk_id)}
                                 />
                             ))}
                         </div>
                     )}
                 </div>
+
+                <AssessmentRail
+                    answer={answer}
+                    citations={citations}
+                    loading={loading}
+                    onJump={jumpTo}
+                />
             </div>
-        </div>
+        </main>
     );
 };
-
-export default ResultsView;
