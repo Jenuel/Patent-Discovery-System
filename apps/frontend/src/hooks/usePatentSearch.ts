@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { searchPatents } from '../api/patent.ts';
 import { buildPayload } from '../lib/buildPayload.ts';
-import type { QueryResponse, SearchFilters } from '../types';
+import type { ComposerState, QueryResponse } from '../types';
 
 export const usePatentSearch = () => {
     const [results, setResults] = useState<QueryResponse | null>(null);
@@ -9,7 +9,7 @@ export const usePatentSearch = () => {
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
 
-    const handleSearch = async (query: string, systemDescription: string, filters: SearchFilters) => {
+    const handleSearch = async (composer: ComposerState) => {
         abortRef.current?.abort();
         abortRef.current = new AbortController();
 
@@ -17,7 +17,7 @@ export const usePatentSearch = () => {
         setError(null);
 
         try {
-            const payload = buildPayload(query, systemDescription, filters);
+            const payload = buildPayload(composer);
             const response = await searchPatents(payload, abortRef.current.signal);
             setResults(response.data);
         } catch (err: any) {

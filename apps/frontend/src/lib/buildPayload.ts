@@ -1,23 +1,32 @@
-import type { SearchFilters, QueryRequest } from '../types';
+import type { ComposerState, QueryFilters, QueryRequest } from '../types';
 
-export const buildPayload = (
-    query: string,
-    systemDescription: string,
-    filters: SearchFilters
-): QueryRequest => {
-    const payload: QueryRequest = { query };
+const toYear = (value: string): number | undefined => {
+    const n = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(n) ? n : undefined;
+};
 
-    if (systemDescription.trim()) {
-        payload.system_description = systemDescription;
-    }
+/** Composer state → the request body `POST /api/v1/query` validates against. */
+export const buildPayload = (composer: ComposerState): QueryRequest => {
+    const payload: QueryRequest = { query: composer.query.trim() };
 
-    const backendFilters = {
-        ...(filters.cpcCodes && { cpc_prefixes: filters.cpcCodes.split(',').map(s => s.trim()).filter(Boolean) }),
-        ...(filters.yearFrom && { year_from: parseInt(filters.yearFrom, 10) }),
-        ...(filters.yearTo && { year_to: parseInt(filters.yearTo, 10) }),
-    };
+    const systemDescription = composer.systemDescription.trim();
+    if (systemDescription) payload.system_description = systemDescription;
 
-    if (Object.keys(backendFilters).length > 0) payload.filters = backendFilters;
+    const filters: QueryFilters = {};
+
+    const prefixes = composer.cpcCodes
+        .split(',')
+        .map((code) => code.trim())
+        .filter(Boolean);
+    if (prefixes.length) filters.cpc_prefixes = prefixes;
+
+    const yearFrom = toYear(composer.yearFrom);
+    if (yearFrom !== undefined) filters.year_from = yearFrom;
+
+    const yearTo = toYear(composer.yearTo);
+    if (yearTo !== undefined) filters.year_to = yearTo;
+
+    if (Object.keys(filters).length) payload.filters = filters;
 
     return payload;
 };

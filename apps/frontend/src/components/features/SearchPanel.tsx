@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
 import { Search, ChevronDown, ChevronUp, SlidersHorizontal, AlertCircle, FileText } from 'lucide-react';
-import type { SearchFilters } from '../../types';
-import { DEFAULT_FILTERS } from '../../constants';
+import type { ComposerState } from '../../types';
+import { EMPTY_COMPOSER } from '../../constants';
 
 interface SearchPanelProps {
-    onSearch: (query: string, systemDescription: string, filters: SearchFilters) => void;
+    onSearch: (composer: ComposerState) => void;
     onCancel: () => void;
     isLoading: boolean;
 }
 
 const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading }) => {
-    const [query, setQuery] = useState('');
-    const [systemDescription, setSystemDescription] = useState('');
     const [isFiltersOpen, setIsFiltersOpen] = useState(false);
     const [showSystemInput, setShowSystemInput] = useState(false);
 
-    const [filters, setFilters] = useState<SearchFilters>({ ...DEFAULT_FILTERS });
+    const [composer, setComposer] = useState<ComposerState>(EMPTY_COMPOSER);
+    const set = <K extends keyof ComposerState>(key: K, value: ComposerState[K]) =>
+        setComposer((prev) => ({ ...prev, [key]: value }));
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!query.trim()) return;
-        onSearch(query, systemDescription, filters);
+        if (!composer.query.trim()) return;
+        onSearch(composer);
     };
 
     return (
@@ -31,8 +31,8 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading
                         <Search className="w-6 h-6" />
                     </div>
                     <textarea
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
+                        value={composer.query}
+                        onChange={(e) => set('query', e.target.value)}
                         placeholder="Describe an invention, technology area, or ask a patent question..."
                         className="w-full pl-12 pr-4 pt-4 pb-4 min-h-[120px] bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none resize-none text-slate-800 placeholder:text-slate-400 font-medium text-lg"
                     />
@@ -71,7 +71,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading
                         )}
                         <button
                             type="submit"
-                            disabled={isLoading || !query.trim()}
+                            disabled={isLoading || !composer.query.trim()}
                             className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
                         >
                             {isLoading ? (
@@ -91,8 +91,8 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading
                             Infringement Check: System Description
                         </div>
                         <textarea
-                            value={systemDescription}
-                            onChange={(e) => setSystemDescription(e.target.value)}
+                            value={composer.systemDescription}
+                            onChange={(e) => set('systemDescription', e.target.value)}
                             placeholder="Paste the technical description of the system you want to analyze for potential infringement risks..."
                             className="w-full p-4 min-h-[100px] bg-indigo-50/30 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none resize-none text-slate-800 placeholder:text-slate-400"
                         />
@@ -108,16 +108,16 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading
                                     type="text"
                                     placeholder="From (YYYY)"
                                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                    value={filters.yearFrom}
-                                    onChange={(e) => setFilters({ ...filters, yearFrom: e.target.value })}
+                                    value={composer.yearFrom}
+                                    onChange={(e) => set('yearFrom', e.target.value)}
                                 />
                                 <span className="text-slate-400">-</span>
                                 <input
                                     type="text"
                                     placeholder="To (YYYY)"
                                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                    value={filters.yearTo}
-                                    onChange={(e) => setFilters({ ...filters, yearTo: e.target.value })}
+                                    value={composer.yearTo}
+                                    onChange={(e) => set('yearTo', e.target.value)}
                                 />
                             </div>
                         </div>
@@ -127,8 +127,8 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading
                                 type="text"
                                 placeholder="e.g. G06N, H04L"
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                value={filters.cpcCodes}
-                                onChange={(e) => setFilters({ ...filters, cpcCodes: e.target.value })}
+                                value={composer.cpcCodes}
+                                onChange={(e) => set('cpcCodes', e.target.value)}
                             />
                             <p className="text-[11px] text-slate-400">
                                 4-character section prefixes, comma separated.

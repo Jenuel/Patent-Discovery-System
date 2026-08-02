@@ -47,9 +47,11 @@ export interface QueryRequest {
     filters?: QueryFilters;
 }
 
-/** The filter fields as the panel holds them, before they are parsed. */
-export interface SearchFilters {
-    yearFrom?: string;
-    yearTo?: string;
-    cpcCodes?: string;
+/** What the composer collects before it is shaped into a QueryRequest. */
+export interface ComposerState {
+    query: string;
+    systemDescription: string;
+    cpcCodes: string;
+    yearFrom: string;
+    yearTo: string;
 }

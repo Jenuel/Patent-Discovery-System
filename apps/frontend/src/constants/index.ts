@@ -1,3 +1,5 @@
+import type { ComposerState } from '../types';
+
 export const APP_CONFIG = {
     name: 'PatentDiscovery',
     description: 'Empowering attorneys and researchers with state-of-the-art semantic search technology for the modern patent landscape.',
@@ -5,11 +7,13 @@ export const APP_CONFIG = {
     company: 'Patent Discovery Systems Inc.'
 } as const;
 
-export const DEFAULT_FILTERS = {
+export const EMPTY_COMPOSER: ComposerState = {
+    query: '',
+    systemDescription: '',
+    cpcCodes: '',
     yearFrom: '',
     yearTo: '',
-    cpcCodes: ''
-} as const;
+};
 
 export const FEATURES = [
     {
