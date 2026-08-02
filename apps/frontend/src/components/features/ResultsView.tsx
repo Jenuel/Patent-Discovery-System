@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { QueryResponse } from '../../types';
 import EvidenceCard from '../common/EvidenceCard';
+import { citationsFor } from '../../lib/citations';
 import { Sparkles, BrainCircuit, History, ArrowRight, SearchX } from 'lucide-react';
 
 /** The API names the mode; the heading spells it. Anything else is prior art. */
@@ -16,16 +17,14 @@ interface ResultsViewProps {
 }
 
 const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
-    // The prompt numbers evidence [1..n] and asks the model to cite those
-    // numbers, so the answer's citations map straight onto card positions.
-    const citedIndexes = React.useMemo(() => {
-        const found = new Set<number>();
-        for (const match of data.answer.matchAll(/\[(\d+)\]/g)) {
-            const n = Number(match[1]);
-            if (n >= 1 && n <= data.evidence.length) found.add(n);
-        }
-        return found;
-    }, [data.answer, data.evidence.length]);
+    const citations = React.useMemo(
+        () => citationsFor(data.answer, data.evidence),
+        [data.answer, data.evidence],
+    );
+    const citedOrdinals = React.useMemo(
+        () => new Set(citations.map((c) => c.ordinal)),
+        [citations],
+    );
 
     const getModeIcon = (mode: string) => {
         switch (mode) {
@@ -68,17 +67,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                             </ReactMarkdown>
                         </div>
 
-                        {citedIndexes.size > 0 && (
+                        {citations.length > 0 && (
                             <div className="mt-8 pt-8 border-t border-slate-100">
                                 <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Evidence Cited Above</h4>
                                 <ul className="space-y-3">
-                                    {[...citedIndexes].sort((a, b) => a - b).map((n) => (
-                                        <li key={n} className="flex items-start gap-3 text-sm text-slate-600">
+                                    {citations.map((citation) => (
+                                        <li key={citation.chunkId} className="flex items-start gap-3 text-sm text-slate-600">
                                             <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
                                             <span>
-                                                <span className="font-mono text-xs text-indigo-600">[{n}]</span>{' '}
-                                                <span className="font-semibold text-slate-900">{data.evidence[n - 1].patent_id}</span>
-                                                {' — '}{data.evidence[n - 1].title ?? 'Unknown Title'}
+                                                <span className="font-mono text-xs text-indigo-600">{citation.label}</span>{' '}
+                                                <span className="font-semibold text-slate-900">{citation.patentId}</span>
+                                                {' — '}{data.evidence[citation.ordinal - 1].title ?? 'Unknown Title'}
                                             </span>
                                         </li>
                                     ))}
@@ -92,7 +91,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                     <div className="mb-6 flex items-center justify-between">
                         <h3 className="text-lg font-bold text-slate-800">Citing Evidence & Relevant Prior Art</h3>
                         <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase">
-                            {citedIndexes.size} cited of {data.evidence.length}
+                            {citations.length} cited of {data.evidence.length}
                         </span>
                     </div>
 
@@ -112,7 +111,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                                     key={chunk.chunk_id}
                                     evidence={chunk}
                                     rank={index + 1}
-                                    isCited={citedIndexes.has(index + 1)}
+                                    isCited={citedOrdinals.has(index + 1)}
                                 />
                             ))}
                         </div>
