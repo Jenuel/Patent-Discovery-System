@@ -100,5 +100,109 @@ class FixtureConsistencyTests(unittest.TestCase):
                 )
 
 
+class PooledFixtureTests(unittest.TestCase):
+    """Guards queries_pooled.jsonl — the TREC-pooled re-judgement of the labels.
+
+    Its patent ids come from the live 6,000-patent corpus, not the 131-patent
+    sample in corpus_patents.jsonl, so it cannot use FixtureConsistencyTests'
+    membership checks. What is guarded instead is the three defects the
+    re-judgement exists to fix.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.path = FIXTURES_DIR / "queries_pooled.jsonl"
+        cls.raw = [
+            json.loads(line)
+            for line in cls.path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        cls.cases = load_query_cases(cls.path)
+
+    def test_loads_with_the_same_parser_as_the_original(self):
+        self.assertEqual(len(self.cases), len(self.raw))
+        self.assertEqual(
+            {c.query_id for c in self.cases}, {r["query_id"] for r in self.raw}
+        )
+
+    def test_no_abstract_chunks_in_claim_ground_truth(self):
+        """claims_hybrid stores only claim chunks.
+
+        The original labels marked ``<patent>::abstract::0000`` relevant for
+        every relevant patent — half of all chunk labels — but Stage 2 searches
+        a collection that contains no abstracts, so those could never be
+        retrieved. Scoring against them capped claim recall at 0.5.
+        """
+        for case in self.cases:
+            for chunk_id in case.relevant_chunk_ids:
+                self.assertNotIn(
+                    "::abstract::", chunk_id,
+                    f"{case.query_id}: {chunk_id} is unretrievable from claims_hybrid",
+                )
+
+    def test_only_grade_2_labels_survive(self):
+        """Grade 1 failed audit at a 52.5% overturn rate and was dropped.
+
+        Re-admitting it would put labels back that are wrong about half the
+        time — worse than the false negatives the pooling pass removed.
+        """
+        for rec in self.raw:
+            for pid, grade in rec.get("patent_grades", {}).items():
+                self.assertEqual(grade, 2, f"{rec['query_id']}: {pid} graded {grade}")
+            for cid, grade in rec["relevant_chunk_ids"].items():
+                self.assertEqual(grade, 2, f"{rec['query_id']}: {cid} graded {grade}")
+
+    def test_every_query_keeps_ground_truth(self):
+        """Dropping grade 1 must not leave a query unscoreable.
+
+        ``aggregate`` excludes empty-ground-truth queries from its means, so a
+        query emptied by the filter would vanish from the report rather than
+        score zero.
+        """
+        for case in self.cases:
+            self.assertTrue(case.relevant_patent_ids, f"{case.query_id} has no patents")
+            self.assertTrue(case.relevant_chunk_ids, f"{case.query_id} has no chunks")
+
+    def test_patent_grades_agree_with_relevant_patent_ids(self):
+        for rec in self.raw:
+            self.assertEqual(
+                sorted(rec["patent_grades"]), sorted(rec["relevant_patent_ids"]),
+                f"{rec['query_id']}: grade map and id list disagree",
+            )
+
+    def test_every_label_records_how_it_was_derived(self):
+        """Provenance is the point: these labels are model-judged, not human."""
+        allowed = {
+            "prior_cpc_family", "prior_abstract_verified", "prior_rejected",
+            "llm_pooled", "dropped_unretrievable",
+        }
+        for rec in self.raw:
+            prov = rec["provenance"]
+            self.assertIn("judged_by", prov)
+            self.assertIn("audit", prov)
+            for pid in rec["relevant_patent_ids"]:
+                self.assertIn(prov["patents"].get(pid), allowed, f"{rec['query_id']}/{pid}")
+            for cid in rec["relevant_chunk_ids"]:
+                self.assertIn(prov["chunks"].get(cid), allowed, f"{rec['query_id']}/{cid}")
+
+    def test_chunks_belong_to_a_relevant_patent(self):
+        """A relevant claim whose patent is not relevant would be incoherent."""
+        for rec in self.raw:
+            patents = set(rec["relevant_patent_ids"])
+            for cid in rec["relevant_chunk_ids"]:
+                self.assertIn(
+                    cid.split("::")[0], patents,
+                    f"{rec['query_id']}: {cid} has no relevant parent patent",
+                )
+
+    def test_queries_match_the_original_fixture(self):
+        """Same 20 queries and filters — only the labels were re-judged."""
+        original = {c.query_id: c for c in load_query_cases(FIXTURES_DIR / "queries.jsonl")}
+        self.assertEqual(set(original), {c.query_id for c in self.cases})
+        for case in self.cases:
+            self.assertEqual(case.query, original[case.query_id].query)
+            self.assertEqual(case.metadata_filter, original[case.query_id].metadata_filter)
+
+
 if __name__ == "__main__":
     unittest.main()
