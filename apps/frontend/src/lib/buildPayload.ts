@@ -1,4 +1,4 @@
-import type { SearchFilters, QueryRequest } from '../../types';
+import type { SearchFilters, QueryRequest } from '../types';
 
 export const buildPayload = (
     query: string,

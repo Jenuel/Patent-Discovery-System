@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { searchPatents } from '../api/patent.ts';
-import { buildPayload } from '../lib/patents/buildPayload.ts';
+import { buildPayload } from '../lib/buildPayload.ts';
 import type { QueryResponse, SearchFilters } from '../types';
 
 export const usePatentSearch = () => {
