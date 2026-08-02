@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldAlert, BookOpenCheck, Zap } from 'lucide-react';
-import { FEATURES } from '../../constants';
+import { FEATURES } from '../constants';
 
 const Hero: React.FC = () => {
     const getIcon = (iconName: string) => {

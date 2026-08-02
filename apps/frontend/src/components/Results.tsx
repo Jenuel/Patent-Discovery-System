@@ -1,9 +1,9 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { QueryResponse } from '../../types';
-import EvidenceCard from '../common/EvidenceCard';
-import { citationsFor } from '../../lib/citations';
+import type { QueryResponse } from '../types';
+import EvidenceCard from './EvidenceRow';
+import { citationsFor } from '../lib/citations';
 import { Sparkles, BrainCircuit, History, ArrowRight, SearchX } from 'lucide-react';
 
 /** The API names the mode; the heading spells it. Anything else is prior art. */

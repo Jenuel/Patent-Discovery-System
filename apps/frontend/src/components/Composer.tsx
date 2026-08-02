@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, ChevronDown, ChevronUp, SlidersHorizontal, AlertCircle, FileText } from 'lucide-react';
-import type { ComposerState } from '../../types';
-import { EMPTY_COMPOSER } from '../../constants';
+import type { ComposerState } from '../types';
+import { EMPTY_COMPOSER } from '../constants';
 
 interface SearchPanelProps {
     onSearch: (composer: ComposerState) => void;

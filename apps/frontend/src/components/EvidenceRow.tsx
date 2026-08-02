@@ -1,7 +1,7 @@
 import React from 'react';
 import { ExternalLink, Layers, Hash, Gauge } from 'lucide-react';
-import type { EvidenceItem } from '../../types';
-import { readYear } from '../../lib/evidence';
+import type { EvidenceItem } from '../types';
+import { readYear } from '../lib/evidence';
 
 /** Anything the retriever does not label is patent-level. */
 const LEVEL_LABEL: Record<string, string> = { claim: 'Claim', limitation: 'Limitation' };
