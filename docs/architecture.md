@@ -21,7 +21,12 @@ To optimize for both scale and relevance, we employ a **Dual-Index Hierarchical 
 - **Hierarchical Expansion**: Once candidate patents are identified, the system drills down into the **Claim-level Index** to find specific passages (claims) that match the query requirements.
 
 ### 3. Reciprocal Rank Fusion (RRF)
-We merge results from different sources (Dense, Sparse, Patent-level, and Claim-level) using the **Reciprocal Rank Fusion (RRF)** algorithm. This ensures that items appearing at the top of multiple retrieval strategies are prioritized.
+At the patent level we merge the dense and BM25 result lists with **Reciprocal Rank Fusion (RRF)**, so items appearing at the top of both retrieval strategies are prioritized. Two implementations are available, selected by `RETRIEVAL_ARM`:
+
+- **`hybrid` (default)** — Qdrant fuses both arms server-side in a single `query_points` call, via `Prefetch` + `FusionQuery`. One round trip.
+- **`weighted`** — the two arms are fetched concurrently and fused client-side by `weighted_rrf` (`app/services/retrieval/fusion.py`), which accepts per-arm weights that Qdrant's native `FusionQuery` does not support. Configured by `FUSION_DENSE_WEIGHT` / `FUSION_SPARSE_WEIGHT`, defaulting to 0.9 / 0.1. Costs two round trips; see `EVAL_ABLATION.md` Test 6 for the measurement behind that ratio.
+
+Claim-level retrieval is dense-only — `claims_hybrid` is created with no sparse vectors, so there is nothing to fuse there.
 
 ### 4. Knowledge Fetching (MongoDB)
 Since vector databases are optimized for search but not for large text storage, the full text of patents and claims is stored in **MongoDB**. The orchestrator fetches the raw text for the top-N candidates identified in the previous step.
