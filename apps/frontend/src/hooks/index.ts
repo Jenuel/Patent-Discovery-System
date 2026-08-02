@@ -1,1 +1,0 @@
-export { usePatentSearch } from './usePatentSearch';

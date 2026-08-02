@@ -1,8 +1,8 @@
 import { Header, Footer, Hero, SearchPanel, ResultsView, ErrorMessage } from './components';
-import { usePatentSearch } from './hooks';
+import { usePatentSearch } from './hooks/usePatentSearch';
 
 function App() {
-    const { results, isLoading, error, handleSearch, cancelSearch } = usePatentSearch();
+    const { status, response, error, search, cancel } = usePatentSearch();
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50">
@@ -10,13 +10,13 @@ function App() {
 
             <main className="flex-1">
                 <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16">
-                    {!results && (
+                    {!response && (
                         <div className="text-center">
                             <Hero />
                         </div>
                     )}
 
-                    <SearchPanel onSearch={handleSearch} onCancel={cancelSearch} isLoading={isLoading} />
+                    <SearchPanel onSearch={search} onCancel={cancel} isLoading={status === 'loading'} />
                 </section>
 
                 {error && (
@@ -25,7 +25,7 @@ function App() {
                     </div>
                 )}
 
-                {results && <ResultsView data={results} />}
+                {response && <ResultsView data={response} />}
             </main>
 
             <Footer />
