@@ -1,11 +1,11 @@
-import type { SearchFilters, PatentQueryPayload } from '../../types';
+import type { SearchFilters, QueryRequest } from '../../types';
 
 export const buildPayload = (
     query: string,
     systemDescription: string,
     filters: SearchFilters
-): PatentQueryPayload => {
-    const payload: PatentQueryPayload = { query };
+): QueryRequest => {
+    const payload: QueryRequest = { query };
 
     if (systemDescription.trim()) {
         payload.system_description = systemDescription;

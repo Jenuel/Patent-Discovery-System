@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { PatentQueryPayload, SearchResponse } from '../types';
+import type { QueryRequest, QueryResponse } from '../types';
 
-export const searchPatents = (payload: PatentQueryPayload, signal?: AbortSignal) =>
-    apiClient.post<SearchResponse>('/api/v1/query', payload, { signal });
+export const searchPatents = (payload: QueryRequest, signal?: AbortSignal) =>
+    apiClient.post<QueryResponse>('/api/v1/query', payload, { signal });

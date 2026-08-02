@@ -1,13 +1,18 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { SearchResponse } from '../../types';
-import { SearchMode } from '../../types';
+import type { QueryResponse } from '../../types';
 import EvidenceCard from '../common/EvidenceCard';
 import { Sparkles, BrainCircuit, History, ArrowRight, SearchX } from 'lucide-react';
 
+/** The API names the mode; the heading spells it. Anything else is prior art. */
+const MODE_LABEL: Record<string, string> = {
+    infringement: 'Infringement',
+    landscape: 'Landscape',
+};
+
 interface ResultsViewProps {
-    data: SearchResponse;
+    data: QueryResponse;
 }
 
 const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
@@ -22,18 +27,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
         return found;
     }, [data.answer, data.evidence.length]);
 
-    const getModeIcon = (mode: SearchMode) => {
+    const getModeIcon = (mode: string) => {
         switch (mode) {
-            case SearchMode.INFRINGEMENT: return <BrainCircuit className="w-5 h-5" />;
-            case SearchMode.LANDSCAPE: return <History className="w-5 h-5" />;
+            case 'infringement': return <BrainCircuit className="w-5 h-5" />;
+            case 'landscape': return <History className="w-5 h-5" />;
             default: return <Sparkles className="w-5 h-5" />;
         }
     };
 
-    const getModeColor = (mode: SearchMode) => {
+    const getModeColor = (mode: string) => {
         switch (mode) {
-            case SearchMode.INFRINGEMENT: return 'bg-rose-50 text-rose-700 border-rose-100';
-            case SearchMode.LANDSCAPE: return 'bg-amber-50 text-amber-700 border-amber-100';
+            case 'infringement': return 'bg-rose-50 text-rose-700 border-rose-100';
+            case 'landscape': return 'bg-amber-50 text-amber-700 border-amber-100';
             default: return 'bg-emerald-50 text-emerald-700 border-emerald-100';
         }
     };
@@ -47,7 +52,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                         <div className="absolute top-0 right-0 p-4">
                             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${getModeColor(data.mode)}`}>
                                 {getModeIcon(data.mode)}
-                                {data.mode} Analysis
+                                {MODE_LABEL[data.mode] ?? 'Prior Art'} Analysis
                             </div>
                         </div>
 
@@ -72,8 +77,8 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                                             <ArrowRight className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
                                             <span>
                                                 <span className="font-mono text-xs text-indigo-600">[{n}]</span>{' '}
-                                                <span className="font-semibold text-slate-900">{data.evidence[n - 1].patentId}</span>
-                                                {' — '}{data.evidence[n - 1].title}
+                                                <span className="font-semibold text-slate-900">{data.evidence[n - 1].patent_id}</span>
+                                                {' — '}{data.evidence[n - 1].title ?? 'Unknown Title'}
                                             </span>
                                         </li>
                                     ))}
@@ -104,7 +109,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data }) => {
                         <div className="space-y-4">
                             {data.evidence.map((chunk, index) => (
                                 <EvidenceCard
-                                    key={chunk.patentId + index}
+                                    key={chunk.chunk_id}
                                     evidence={chunk}
                                     rank={index + 1}
                                     isCited={citedIndexes.has(index + 1)}
