@@ -1,6 +1,7 @@
 import React from 'react';
 import { ExternalLink, Layers, Hash, Gauge } from 'lucide-react';
 import type { EvidenceItem } from '../../types';
+import { readYear } from '../../lib/evidence';
 
 /** Anything the retriever does not label is patent-level. */
 const LEVEL_LABEL: Record<string, string> = { claim: 'Claim', limitation: 'Limitation' };
@@ -83,7 +84,7 @@ const EvidenceCard: React.FC<EvidenceCardProps> = ({ evidence, rank, isCited }) 
                     <span>Source: <span className={`px-1.5 rounded border uppercase text-[10px] ${getSourceBadge(evidence.source)}`}>{evidence.source}</span></span>
                 </div>
                 <div className="ml-auto">
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Priority: {evidence.metadata?.year ?? 'Unknown Year'}</span>
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Priority: {readYear(evidence) ?? 'Unknown Year'}</span>
                 </div>
             </div>
         </div>
