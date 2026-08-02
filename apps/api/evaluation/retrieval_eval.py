@@ -19,15 +19,17 @@ combinations here instead:
 ``--arm {hybrid,dense,bm25}``  Test 1 — is the BM25 arm earning its keep
 ``--fusion {rrf,dbsf}``        Test 3 — server-side fusion strategy
 ``--sparse-prefetch N``        Test 3 — sparse arm swept, dense held
-``--dense-weight/--sparse-weight``  Test 4 — Python-level weighted RRF
+``--dense-weight/--sparse-weight``  Tests 4, 6 — client-side weighted RRF
 ``--depth N``                  Test 5 — recall ceiling past ``patent_top_k``
 ``--rerank / --rerank-model``  EVAL_RERANKING.md — cross-encoder sweep
 ``--tag NAME``                 keeps each run's CSVs instead of overwriting
 ===========================  =====================================
 
-Except for the weighted-RRF diagnostic (see :func:`weighted_rrf`), every arm
-runs through the ordinary production code path — the knobs live on
+Every arm runs through the ordinary production code path — the knobs live on
 ``DenseRetriever``/``HierarchicalConfig``, not on a parallel implementation.
+Weighted fusion used to be the exception, implemented here because Qdrant has
+no weighted ``FusionQuery``; ``RET-09`` moved it into ``DenseRetriever`` as
+``arm="weighted"``, so the harness now drives it like any other arm.
 
 Requires a live Qdrant instance with the corpus indexed.
 
@@ -54,7 +56,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -101,49 +103,27 @@ class EvalConfig:
 
     @property
     def weighted(self) -> bool:
-        """True when Python-level weighted fusion replaces Qdrant's."""
+        """True when explicit arm weights were requested.
+
+        Either flag alone counts: ``--dense-weight 1.0`` with no
+        ``--sparse-weight`` is a legitimate 1:0 configuration, not an
+        incomplete one.
+        """
         return self.dense_weight is not None or self.sparse_weight is not None
+
+    @property
+    def resolved_arm(self) -> str:
+        """The ``DenseRetriever`` arm this run actually uses.
+
+        Weight flags imply ``arm="weighted"``, so ``--dense-weight 0.9
+        --sparse-weight 0.1`` needs no accompanying ``--arm``.
+        """
+        return "weighted" if self.weighted else self.arm
 
 
 # ----------------------------------------------------------------------
 # Pure helpers (unit-tested without Qdrant, OpenAI, or a model)
 # ----------------------------------------------------------------------
-
-def weighted_rrf(
-    arms: Sequence[Tuple[float, Sequence[ScoredMatch]]],
-    k: int = 60,
-    limit: Optional[int] = None,
-) -> List[ScoredMatch]:
-    """Python-level weighted Reciprocal Rank Fusion over independent arms.
-
-    ``score(d) = Σ_arm weight_arm / (k + rank_arm(d))``, rank starting at 1.
-
-    This is the one path in the harness that does **not** run through
-    production code, because Qdrant's native ``FusionQuery`` has no weight
-    parameter — the only way to vary arm weights is to fetch each arm
-    separately and fuse here. EVAL_ABLATION.md Test 4 exists precisely to show
-    that no weighting beats dense-only, so this is a diagnostic, not a
-    candidate configuration; results from it are not directly comparable to a
-    native-fusion run (Qdrant applies the payload filter inside each
-    sub-query, this applies it per arm).
-
-    Ties resolve to first-seen order, so a deterministic input gives a
-    deterministic ranking rather than one that depends on dict iteration.
-    """
-    scores: Dict[str, float] = {}
-    first_seen: Dict[str, ScoredMatch] = {}
-
-    for weight, matches in arms:
-        if not weight:
-            continue
-        for rank, match in enumerate(matches, start=1):
-            scores[match.id] = scores.get(match.id, 0.0) + weight / (k + rank)
-            first_seen.setdefault(match.id, match)
-
-    order = sorted(first_seen, key=lambda mid: -scores[mid])
-    fused = [replace(first_seen[mid], score=scores[mid]) for mid in order]
-    return fused[:limit] if limit is not None else fused
-
 
 def dedupe_patent_ids(matches: Sequence[ScoredMatch], limit: int) -> List[str]:
     """Order-preserving distinct patent_id extraction, capped at `limit`.
@@ -201,8 +181,8 @@ def config_columns(cfg: EvalConfig, reranked: bool, depth: int) -> Dict[str, Any
     ran them.
     """
     return {
-        "arm": cfg.arm,
-        "fusion": "weighted_rrf" if cfg.weighted else cfg.fusion,
+        "arm": cfg.resolved_arm,
+        "fusion": "weighted_rrf" if cfg.resolved_arm == "weighted" else cfg.fusion,
         "reranked": reranked,
         "rerank_model": cfg.rerank_model if reranked else "",
         "patent_top_k": cfg.patent_top_k,
@@ -213,7 +193,7 @@ def config_columns(cfg: EvalConfig, reranked: bool, depth: int) -> Dict[str, Any
         "sparse_prefetch": cfg.sparse_prefetch if cfg.sparse_prefetch is not None else "",
         "dense_weight": cfg.dense_weight if cfg.dense_weight is not None else "",
         "sparse_weight": cfg.sparse_weight if cfg.sparse_weight is not None else "",
-        "rrf_k": cfg.rrf_k if cfg.weighted else "",
+        "rrf_k": cfg.rrf_k if cfg.resolved_arm == "weighted" else "",
     }
 
 
@@ -286,13 +266,23 @@ async def build_pipeline(cfg: Optional[EvalConfig] = None, depth: Optional[int] 
     qdrant = QdrantHybridStore.from_env()
     reranker = build_reranker(cfg)
 
+    # Explicit weights are forwarded only when given, so a bare `--arm weighted`
+    # inherits DenseRetriever's shipped 0.9/0.1 rather than constructing with
+    # 0.0/0.0 and raising.
+    weights = (
+        {"dense_weight": cfg.dense_weight or 0.0, "sparse_weight": cfg.sparse_weight or 0.0}
+        if cfg.weighted
+        else {}
+    )
     dense = DenseRetriever(
         qdrant,
-        arm=cfg.arm,
+        arm=cfg.resolved_arm,
         fusion=cfg.fusion,
         prefetch_multiplier=cfg.prefetch_multiplier,
         dense_prefetch_limit=cfg.dense_prefetch,
         sparse_prefetch_limit=cfg.sparse_prefetch,
+        rrf_k=cfg.rrf_k,
+        **weights,
     )
     retriever = HierarchicalRetriever(
         dense=dense,
@@ -315,54 +305,18 @@ async def build_pipeline(cfg: Optional[EvalConfig] = None, depth: Optional[int] 
 async def search_patents(
     pipeline: Pipeline, case: QueryCase, dense_query_vec: List[float]
 ) -> List[ScoredMatch]:
-    """Stage 1 for patent-level scoring, on the configured arm."""
-    cfg = pipeline.cfg
-    fetch = pipeline.fetch_depth
+    """Stage 1 for patent-level scoring, on the configured arm.
 
-    if cfg.weighted:
-        dense_raw = await pipeline.qdrant.search_patents_dense(
-            dense_query_vec, top_k=fetch, metadata_filter=case.metadata_filter or None
-        )
-        sparse_raw = await pipeline.qdrant.search_bm25(
-            case.query, top_k=fetch, metadata_filter=case.metadata_filter or None
-        )
-        return weighted_rrf(
-            [
-                (cfg.dense_weight or 0.0, to_scored_matches(dense_raw)),
-                (cfg.sparse_weight or 0.0, to_scored_matches(sparse_raw)),
-            ],
-            k=cfg.rrf_k,
-            limit=fetch,
-        )
-
+    Every arm — including the weighted one, since ``RET-09`` — goes through
+    ``DenseRetriever.search``, so this measures production and not a
+    re-implementation of it.
+    """
     raw = await pipeline.retriever.dense.search(
         dense_vector=dense_query_vec,
-        top_k=fetch,
+        top_k=pipeline.fetch_depth,
         metadata_filter=case.metadata_filter,
         level="patent",
         query_text=case.query,
-    )
-    return to_scored_matches(raw)
-
-
-async def search_claims(
-    pipeline: Pipeline, case: QueryCase, dense_query_vec: List[float], patent_ids: List[str]
-) -> List[ScoredMatch]:
-    """Stage 2 for the weighted-fusion path only.
-
-    Every other configuration goes through ``retrieve_claims_hierarchical``
-    unmodified. Weighted fusion cannot: Qdrant has no weighted ``FusionQuery``,
-    so Stage 1 had to happen out here, and reusing the production call would
-    silently re-run an *unweighted* Stage 1 — reporting claim metrics for a
-    configuration that was never requested.
-    """
-    if not patent_ids:
-        return []
-    raw = await pipeline.retriever.dense.search(
-        dense_vector=dense_query_vec,
-        top_k=pipeline.cfg.claim_top_k,
-        metadata_filter={"patent_id": {"$in": patent_ids[: pipeline.cfg.patent_top_k]}},
-        level="claim",
     )
     return to_scored_matches(raw)
 
@@ -379,8 +333,7 @@ async def run_query(pipeline: Pipeline, case: QueryCase) -> Tuple[List[str], Lis
          undercount: a correctly-selected patent can contribute zero claims to
          the top-K if another selected patent's claims outscore it.
       2. ``pipeline.retriever.retrieve_claims_hierarchical(...)`` — the real,
-         unmodified production call — for claim-level metrics. (Weighted
-         fusion is the one exception; see :func:`search_claims`.)
+         unmodified production call — for claim-level metrics.
 
     **Stage 1b runs on both.** The independent patent path applies the same
     cross-encoder rerank ``retrieve_claims_hierarchical`` does, because
@@ -422,16 +375,11 @@ async def run_query(pipeline: Pipeline, case: QueryCase) -> Tuple[List[str], Lis
         predicted_patent_ids = []
 
     try:
-        if pipeline.cfg.weighted:
-            claim_matches = await search_claims(
-                pipeline, case, dense_query_vec, predicted_patent_ids
-            )
-        else:
-            claim_matches = await pipeline.retriever.retrieve_claims_hierarchical(
-                dense_query_vec=dense_query_vec,
-                query_text=case.query,
-                base_filter=case.metadata_filter,
-            )
+        claim_matches = await pipeline.retriever.retrieve_claims_hierarchical(
+            dense_query_vec=dense_query_vec,
+            query_text=case.query,
+            base_filter=case.metadata_filter,
+        )
         retrieved_claim_chunk_ids = [m.id for m in claim_matches]
     except Exception:
         log.warning(
@@ -650,8 +598,13 @@ async def main() -> None:
     claim_k_values = _parse_k_values(args.claim_k)
     cfg = config_from_args(args)
 
-    if cfg.weighted and cfg.arm != "hybrid":
-        raise SystemExit("--dense-weight/--sparse-weight fuse two arms; use --arm hybrid")
+    # The weight flags *select* arm="weighted", so pairing them with an
+    # explicit single-arm --arm is a contradiction rather than a refinement.
+    if cfg.weighted and cfg.arm not in ("hybrid", "weighted"):
+        raise SystemExit(
+            f"--dense-weight/--sparse-weight imply --arm weighted, "
+            f"which contradicts --arm {cfg.arm}"
+        )
 
     depth = resolve_depth(cfg, patent_k_values)
     report_paths(args.output_dir, cfg.tag)  # fail fast on a bad --tag
@@ -661,7 +614,8 @@ async def main() -> None:
 
     pipeline = await build_pipeline(cfg, depth=depth)
     log.info(
-        f"[EVAL] arm={cfg.arm} fusion={'weighted_rrf' if cfg.weighted else cfg.fusion} "
+        f"[EVAL] arm={cfg.resolved_arm} "
+        f"fusion={'weighted_rrf' if cfg.resolved_arm == 'weighted' else cfg.fusion} "
         f"rerank={bool(pipeline.reranker)} depth={depth} "
         f"fetch_depth={pipeline.fetch_depth} "
         f"patent_top_k={cfg.patent_top_k} claim_top_k={cfg.claim_top_k}"

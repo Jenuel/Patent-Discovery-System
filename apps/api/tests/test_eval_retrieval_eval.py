@@ -3,9 +3,8 @@
 
 The harness's live path needs Qdrant, OpenAI and a cross-encoder, so what is
 tested here is everything factored out of it: the metric-free plumbing
-(dedupe, fieldnames), the ablation configuration (EvalConfig, resolve_depth,
-report_paths, config_columns), and the one fusion strategy the harness
-implements itself (weighted_rrf). This matches FakeDense's style in
+(dedupe, fieldnames) and the ablation configuration (EvalConfig, resolve_depth,
+report_paths, config_columns). This matches FakeDense's style in
 test_hierarchical.py of isolating pure logic from I/O.
 
 BuildPipelineSignatureTests additionally guards build_pipeline's *call
@@ -29,7 +28,6 @@ from evaluation.retrieval_eval import (
     report_paths,
     resolve_depth,
     union_fieldnames,
-    weighted_rrf,
 )
 
 
@@ -99,66 +97,46 @@ class BuildPipelineSignatureTests(unittest.TestCase):
             sparse_prefetch_limit=20,
         )
 
+    def test_dense_retriever_accepts_the_weighted_kwargs(self):
+        inspect.signature(DenseRetriever).bind(
+            object(),
+            arm="weighted",
+            dense_weight=0.9,
+            sparse_weight=0.1,
+            rrf_k=60,
+        )
+
     def test_hierarchical_retriever_accepts_a_reranker(self):
         inspect.signature(HierarchicalRetriever).bind(
             dense=object(), cfg=HierarchicalConfig(), reranker=object()
         )
 
 
-class WeightedRrfTests(unittest.TestCase):
-    """EVAL_ABLATION.md Test 4 — Python-level weighted fusion."""
+class ResolvedArmTests(unittest.TestCase):
+    """Weight flags select arm="weighted" (RET-09) without a separate --arm."""
 
-    @staticmethod
-    def _arm(*ids):
-        return [ScoredMatch(id=i, score=1.0, metadata={"patent_id": i}) for i in ids]
+    def test_no_weights_keeps_the_requested_arm(self):
+        self.assertEqual(EvalConfig().resolved_arm, "hybrid")
+        self.assertEqual(EvalConfig(arm="dense").resolved_arm, "dense")
+        self.assertFalse(EvalConfig(arm="dense").weighted)
 
-    def test_single_arm_preserves_its_ordering(self):
-        fused = weighted_rrf([(1.0, self._arm("a", "b", "c"))], k=60)
-        self.assertEqual([m.id for m in fused], ["a", "b", "c"])
+    def test_either_weight_alone_selects_the_weighted_arm(self):
+        """--dense-weight 1.0 is a legitimate 1:0 run, not an incomplete one."""
+        self.assertEqual(EvalConfig(dense_weight=1.0).resolved_arm, "weighted")
+        self.assertEqual(EvalConfig(sparse_weight=0.1).resolved_arm, "weighted")
 
-    def test_zero_weight_arm_is_excluded_entirely(self):
-        """The 1:0 row of Test 4 must equal dense-only, not merely approach it."""
-        fused = weighted_rrf(
-            [(1.0, self._arm("a", "b")), (0.0, self._arm("z", "y"))], k=60
+    def test_an_explicit_weighted_arm_needs_no_flags(self):
+        cfg = EvalConfig(arm="weighted")
+        self.assertEqual(cfg.resolved_arm, "weighted")
+        self.assertFalse(cfg.weighted)  # build_pipeline then uses the defaults
+
+    def test_config_columns_reports_the_resolved_arm(self):
+        cols = config_columns(
+            EvalConfig(dense_weight=0.9, sparse_weight=0.1), reranked=False, depth=10
         )
-        self.assertEqual([m.id for m in fused], ["a", "b"])
-
-    def test_agreement_between_arms_beats_a_single_arms_top_hit(self):
-        dense = self._arm("a", "shared")
-        sparse = self._arm("b", "shared")
-        fused = weighted_rrf([(1.0, dense), (1.0, sparse)], k=1)
-        # shared: 1/(1+2) + 1/(1+2) = 0.667; a and b: 1/(1+1) = 0.5
-        self.assertEqual(fused[0].id, "shared")
-
-    def test_weight_shifts_the_balance_toward_the_heavier_arm(self):
-        dense = self._arm("d1", "d2")
-        sparse = self._arm("s1", "s2")
-        even = weighted_rrf([(1.0, dense), (1.0, sparse)], k=60)
-        skewed = weighted_rrf([(10.0, dense), (1.0, sparse)], k=60)
-        self.assertEqual(even[0].id, "d1")  # tie broken by first-seen order
-        self.assertEqual([m.id for m in skewed[:2]], ["d1", "d2"])
-
-    def test_scores_are_the_fused_values_not_the_input_scores(self):
-        fused = weighted_rrf([(1.0, self._arm("a"))], k=60)
-        self.assertAlmostEqual(fused[0].score, 1.0 / 61)
-
-    def test_metadata_survives_fusion(self):
-        fused = weighted_rrf([(1.0, self._arm("a"))], k=60)
-        self.assertEqual(fused[0].metadata, {"patent_id": "a"})
-
-    def test_limit_truncates(self):
-        fused = weighted_rrf([(1.0, self._arm("a", "b", "c"))], k=60, limit=2)
-        self.assertEqual([m.id for m in fused], ["a", "b"])
-
-    def test_ties_resolve_deterministically_to_first_seen_order(self):
-        for _ in range(5):
-            fused = weighted_rrf(
-                [(1.0, self._arm("a", "b")), (1.0, self._arm("a", "b"))], k=60
-            )
-            self.assertEqual([m.id for m in fused], ["a", "b"])
-
-    def test_no_arms(self):
-        self.assertEqual(weighted_rrf([], k=60), [])
+        self.assertEqual(cols["arm"], "weighted")
+        self.assertEqual(cols["fusion"], "weighted_rrf")
+        self.assertEqual(cols["rrf_k"], 60)
 
 
 class ResolveDepthTests(unittest.TestCase):
