@@ -1,7 +1,31 @@
+import { Composer } from './Composer';
 import { CAPABILITIES, HERO, STATS } from '../constants';
+import type { ComposerState } from '../types';
 
-export const Landing = () => (
-    <div className="landing">
+interface LandingProps {
+    composer: ComposerState;
+    onComposerChange: (next: ComposerState) => void;
+    onSubmit: () => void;
+    onExample: (query: string) => void;
+    busy: boolean;
+    error: string | null;
+}
+
+export const Landing = ({
+    composer,
+    onComposerChange,
+    onSubmit,
+    onExample,
+    busy,
+    error,
+}: LandingProps) => (
+    <main className="landing">
+        {error && (
+            <div className="errorBar" role="alert">
+                {error}
+            </div>
+        )}
+
         <div className="hero">
             <div>
                 <div className="hero__kicker">{HERO.kicker}</div>
@@ -20,6 +44,14 @@ export const Landing = () => (
             </div>
         </div>
 
+        <Composer
+            value={composer}
+            onChange={onComposerChange}
+            onSubmit={onSubmit}
+            onExample={onExample}
+            busy={busy}
+        />
+
         <div className="stats">
             {STATS.map((stat) => (
                 <div className="stats__cell" key={stat.value}>
@@ -28,5 +60,5 @@ export const Landing = () => (
                 </div>
             ))}
         </div>
-    </div>
+    </main>
 );

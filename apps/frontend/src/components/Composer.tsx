@@ -1,144 +1,159 @@
-import React, { useState } from 'react';
-import { Search, ChevronDown, ChevronUp, SlidersHorizontal, AlertCircle, FileText } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, Paperclip, SlidersHorizontal } from 'lucide-react';
+import { COMPOSER_PLACEHOLDER, EXAMPLE_QUERIES, SEARCH_CTA } from '../constants';
 import type { ComposerState } from '../types';
-import { EMPTY_COMPOSER } from '../constants';
 
-interface SearchPanelProps {
-    onSearch: (composer: ComposerState) => void;
-    onCancel: () => void;
-    isLoading: boolean;
+interface ComposerProps {
+    value: ComposerState;
+    onChange: (next: ComposerState) => void;
+    onSubmit: () => void;
+    onExample: (query: string) => void;
+    busy: boolean;
 }
 
-const SearchPanel: React.FC<SearchPanelProps> = ({ onSearch, onCancel, isLoading }) => {
-    const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-    const [showSystemInput, setShowSystemInput] = useState(false);
+/** The page's one input. The two tools under the rule open the fields the
+ *  backend accepts: system_description, and the filters object. */
+export const Composer = ({ value, onChange, onSubmit, onExample, busy }: ComposerProps) => {
+    const [showDescription, setShowDescription] = useState(false);
+    const [showConstraints, setShowConstraints] = useState(false);
 
-    const [composer, setComposer] = useState<ComposerState>(EMPTY_COMPOSER);
-    const set = <K extends keyof ComposerState>(key: K, value: ComposerState[K]) =>
-        setComposer((prev) => ({ ...prev, [key]: value }));
+    const set = <K extends keyof ComposerState>(key: K, next: ComposerState[K]) =>
+        onChange({ ...value, [key]: next });
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!composer.query.trim()) return;
-        onSearch(composer);
+    const canSubmit = value.query.trim().length >= 3 && !busy;
+
+    const submit = () => {
+        if (canSubmit) onSubmit();
     };
 
     return (
-        <div className="w-full max-w-4xl mx-auto">
-            <form onSubmit={handleSearch} className="bg-white shadow-xl shadow-slate-200/50 rounded-2xl border border-slate-200 p-6 md:p-8">
-                <div className="relative mb-4">
-                    <div className="absolute left-4 top-4 text-slate-400">
-                        <Search className="w-6 h-6" />
-                    </div>
-                    <textarea
-                        value={composer.query}
-                        onChange={(e) => set('query', e.target.value)}
-                        placeholder="Describe an invention, technology area, or ask a patent question..."
-                        className="w-full pl-12 pr-4 pt-4 pb-4 min-h-[120px] bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none resize-none text-slate-800 placeholder:text-slate-400 font-medium text-lg"
-                    />
-                </div>
+        <div className="composerWrap">
+            <div className="composer">
+                <label className="srOnly" htmlFor="composer-query">
+                    Describe your invention
+                </label>
+                <textarea
+                    id="composer-query"
+                    className="composer__input"
+                    rows={3}
+                    placeholder={COMPOSER_PLACEHOLDER}
+                    value={value.query}
+                    onChange={(e) => set('query', e.target.value)}
+                    onKeyDown={(e) => {
+                        // Enter searches; Shift+Enter keeps the newline.
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            submit();
+                        }
+                    }}
+                />
 
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center space-x-3">
+                <div className="composer__bar">
+                    <div className="composer__tools">
                         <button
                             type="button"
-                            onClick={() => setShowSystemInput(!showSystemInput)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${showSystemInput ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                            className="ctl"
+                            aria-pressed={showDescription}
+                            onClick={() => setShowDescription((open) => !open)}
                         >
-                            <FileText className="w-4 h-4" />
-                            {showSystemInput ? 'Remove System Desc' : 'Add System Description'}
+                            <Paperclip size={12} strokeWidth={2} aria-hidden="true" /> Attach system
+                            description
                         </button>
                         <button
                             type="button"
-                            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${isFiltersOpen ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                            className="ctl"
+                            aria-pressed={showConstraints}
+                            onClick={() => setShowConstraints((open) => !open)}
                         >
-                            <SlidersHorizontal className="w-4 h-4" />
-                            Advanced Filters
-                            {isFiltersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            <SlidersHorizontal size={12} strokeWidth={2} aria-hidden="true" /> Dates ·
+                            CPC
                         </button>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                        {isLoading && (
-                            <button
-                                type="button"
-                                onClick={onCancel}
-                                className="px-4 py-3 rounded-xl font-semibold text-sm text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all"
-                            >
-                                Cancel
-                            </button>
-                        )}
-                        <button
-                            type="submit"
-                            disabled={isLoading || !composer.query.trim()}
-                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
-                        >
-                            {isLoading ? (
-                                <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    Analyzing...
-                                </div>
-                            ) : 'Discover Patents'}
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className="ctl-primary"
+                        onClick={submit}
+                        disabled={!canSubmit}
+                    >
+                        {busy ? 'Searching…' : SEARCH_CTA}{' '}
+                        <ArrowRight size={13} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
                 </div>
 
-                {showSystemInput && (
-                    <div className="mt-6 border-t border-slate-100 pt-6 animate-in slide-in-from-top-2 duration-200">
-                        <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold text-sm uppercase tracking-wide">
-                            <AlertCircle className="w-4 h-4" />
-                            Infringement Check: System Description
+                {showDescription && (
+                    <div className="composer__drawer">
+                        <div className="composer__drawerLabel">SYSTEM DESCRIPTION</div>
+                        <div className="composer__field">
+                            <label htmlFor="composer-system">
+                                system_description — supplying this runs the query as infringement
+                            </label>
+                            <textarea
+                                id="composer-system"
+                                className="input"
+                                rows={4}
+                                placeholder="How your product works, element by element…"
+                                value={value.systemDescription}
+                                onChange={(e) => set('systemDescription', e.target.value)}
+                            />
                         </div>
-                        <textarea
-                            value={composer.systemDescription}
-                            onChange={(e) => set('systemDescription', e.target.value)}
-                            placeholder="Paste the technical description of the system you want to analyze for potential infringement risks..."
-                            className="w-full p-4 min-h-[100px] bg-indigo-50/30 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none resize-none text-slate-800 placeholder:text-slate-400"
-                        />
                     </div>
                 )}
 
-                {isFiltersOpen && (
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-6 animate-in slide-in-from-top-2 duration-200">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Priority Date Range</label>
-                            <div className="flex items-center gap-2">
+                {showConstraints && (
+                    <div className="composer__drawer">
+                        <div className="composer__drawerLabel">CONSTRAIN THE RETRIEVAL</div>
+                        <div className="composer__grid">
+                            <div className="composer__field">
+                                <label htmlFor="composer-cpc">cpc_prefixes</label>
                                 <input
-                                    type="text"
-                                    placeholder="From (YYYY)"
-                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                    value={composer.yearFrom}
+                                    id="composer-cpc"
+                                    className="input"
+                                    placeholder="G06N, G06V"
+                                    value={value.cpcCodes}
+                                    onChange={(e) => set('cpcCodes', e.target.value)}
+                                />
+                            </div>
+                            <div className="composer__field">
+                                <label htmlFor="composer-from">year_from</label>
+                                <input
+                                    id="composer-from"
+                                    className="input"
+                                    inputMode="numeric"
+                                    placeholder="2010"
+                                    value={value.yearFrom}
                                     onChange={(e) => set('yearFrom', e.target.value)}
                                 />
-                                <span className="text-slate-400">-</span>
+                            </div>
+                            <div className="composer__field">
+                                <label htmlFor="composer-to">year_to</label>
                                 <input
-                                    type="text"
-                                    placeholder="To (YYYY)"
-                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                    value={composer.yearTo}
+                                    id="composer-to"
+                                    className="input"
+                                    inputMode="numeric"
+                                    placeholder="2024"
+                                    value={value.yearTo}
                                     onChange={(e) => set('yearTo', e.target.value)}
                                 />
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">CPC Class</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. G06N, H04L"
-                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                value={composer.cpcCodes}
-                                onChange={(e) => set('cpcCodes', e.target.value)}
-                            />
-                            <p className="text-[11px] text-slate-400">
-                                4-character section prefixes, comma separated.
-                            </p>
-                        </div>
                     </div>
                 )}
-            </form>
+            </div>
+
+            <div className="tryRow">
+                <span className="tryRow__label">Try:</span>
+                {EXAMPLE_QUERIES.map((example) => (
+                    <button
+                        key={example}
+                        type="button"
+                        className="ctl-tint"
+                        onClick={() => onExample(example)}
+                        disabled={busy}
+                    >
+                        {example}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 };
-
-export default SearchPanel;

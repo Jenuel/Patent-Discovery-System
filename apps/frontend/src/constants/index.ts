@@ -33,7 +33,18 @@ export const CAPABILITIES = [
     },
 ] as const;
 
-/* Carries the same corpus figure as HERO above — retune both together. */
+export const COMPOSER_PLACEHOLDER =
+    "Describe your invention — what it does, how it works, what's new about it…";
+
+export const SEARCH_CTA = 'Search 142M filings';
+
+export const EXAMPLE_QUERIES = [
+    'on-device image classification without a server round trip',
+    'solid-state battery cathode coating',
+    'speaker diarization on embedded hardware',
+] as const;
+
+/* Carries the same corpus figure as HERO and SEARCH_CTA — retune together. */
 export const STATS = [
     { value: '142M', label: 'filings across 34 offices' },
     { value: '40s', label: 'to a readable assessment' },
