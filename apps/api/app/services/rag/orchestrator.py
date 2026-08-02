@@ -60,12 +60,17 @@ class RAGOrchestrator:
         self.mongodb_store = mongodb_store or MongoDBStore.from_env()
         self.llm = llm or GeminiClient.from_env()
 
-        # Initialize retrievers
-        self.dense_retriever = DenseRetriever(self.qdrant_store)
+        from app.core.settings import get_settings
+
+        _settings = get_settings()
+        self.dense_retriever = DenseRetriever(
+            self.qdrant_store,
+            arm=_settings.retrieval_arm,
+            dense_weight=_settings.fusion_dense_weight,
+            sparse_weight=_settings.fusion_sparse_weight,
+        )
 
         if reranker is None:
-            from app.core.settings import get_settings
-
             if get_settings().rerank_enabled:
                 from app.services.rerank.reranker import CrossEncoderReranker
 
