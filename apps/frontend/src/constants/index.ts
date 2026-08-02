@@ -1,11 +1,6 @@
 import type { ComposerState } from '../types';
 
-export const APP_CONFIG = {
-    name: 'PatentDiscovery',
-    description: 'Empowering attorneys and researchers with state-of-the-art semantic search technology for the modern patent landscape.',
-    year: 2024,
-    company: 'Patent Discovery Systems Inc.'
-} as const;
+export const APP_NAME = { head: 'Patent', tail: 'Discovery' } as const;
 
 export const EMPTY_COMPOSER: ComposerState = {
     query: '',
@@ -39,22 +34,3 @@ export const FEATURES = [
     }
 ] as const;
 
-export const FOOTER_LINKS = {
-    platform: [
-        { label: 'Search Engine', href: '#' },
-        { label: 'Claim Mapping', href: '#' },
-        { label: 'Portfolio Health', href: '#' },
-        { label: 'API Documentation', href: '#' }
-    ],
-    company: [
-        { label: 'About Us', href: '#' },
-        { label: 'Legal Info', href: '#' },
-        { label: 'Security', href: '#' },
-        { label: 'Support', href: '#' }
-    ],
-    legal: [
-        { label: 'Privacy Policy', href: '#' },
-        { label: 'Terms of Service', href: '#' },
-        { label: 'Cookie Settings', href: '#' }
-    ]
-} as const;
