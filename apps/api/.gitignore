@@ -19,10 +19,7 @@ ENV/
 *.txt
 !requirements.txt
 
-# evaluation/results/ is deliberately tracked: a CSV that is not in the
-# repository cannot be diffed across commits, which is how every table in
-# EVAL_ABLATION.md ended up unreproducible. Runs are small and --tag keeps
-# them apart.
-
+# Ignore evaluation results directory
+evaluation/results/
 # Generated corpus (~79 MB). Rebuild with scripts/build_hupd_corpus.py
 data/
