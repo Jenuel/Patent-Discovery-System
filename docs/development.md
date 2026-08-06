@@ -11,9 +11,8 @@ Welcome to the Patent Discovery System development guide! This document outlines
 - **uv**: (Recommended) Fast Python package manager.
 
 ### 2. Environment Variables
-Each app requires a `.env` file. We provide `.env.example` templates in each directory.
-- `apps/api/.env.example`
-- `apps/frontend/.env.example`
+- `apps/api/.env` — `GEMINI_API_KEY`, `OPENAI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`, `MONGODB_URI`, plus the optional retrieval-tuning vars documented in [`apps/api/README.md`](../apps/api/README.md).
+- `apps/frontend/.env` — `VITE_API_URL`, only needed when not proxying to `http://localhost:8000`.
 
 ## 📡 Backend Development (FastAPI)
 
@@ -49,7 +48,7 @@ npm run dev
 ```
 
 ### Styling Standards
-We use **Tailwind CSS 4** for styling. Please use utility classes and avoid custom CSS where possible.
+No Tailwind — the frontend uses a hand-written CSS design system under `src/styles/` (`design-system.css` for tokens/primitives, `theme.css` for the `:root` overrides, `app.css` for the two screens). See [`apps/frontend/README.md`](../apps/frontend/README.md) for the layering and the structural rules (0px radius, 2px dividers, etc).
 
 ## 🐳 Docker Workflow
 
@@ -63,16 +62,16 @@ docker-compose up --build api
 ## 🧪 Testing
 
 ### Backend Tests
-(To be implemented - contributions welcome!)
+`apps/api/tests/` covers fusion, hierarchical retrieval, the reranker, evidence formatting, the Qdrant store, and the eval harness itself.
 ```bash
+cd apps/api
 pytest
 ```
 
+Retrieval quality (MRR/recall/nDCG ablations across the fusion arms) lives separately in `apps/api/evaluation/` — see [`docs/evaluation.md`](./evaluation.md).
+
 ### Frontend Tests
-(To be implemented - contributions welcome!)
-```bash
-npm test
-```
+Not implemented yet — no `test` script in `apps/frontend/package.json`. Contributions welcome.
 
 ## 🤝 Coding Standards
 
@@ -82,4 +81,4 @@ npm test
 
 ## 🚀 Deployment
 
-The system is designed to be deployed via Docker containers. A sample `nginx.conf` is provided in the root to handle traffic between the frontend and backend.
+The system is designed to be deployed via Docker containers, orchestrated by the root `docker-compose.yml`. The frontend container serves its build with nginx, configured by `apps/frontend/nginx.conf`.

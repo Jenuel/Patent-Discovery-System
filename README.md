@@ -1,8 +1,8 @@
 # Patent Discovery System
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react)](https://reactjs.org/)
-[![Qdrant](https://img.shields.io/badge/Qdrant-Hybrid_Vector_DB-DC244C?style=flat)](https://qdrant.tech/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://reactjs.org/)
+[![Qdrant](https://img.shields.io/badge/Qdrant-Hybrid_Vector_DB-DC244C?style=for-the-badge)](https://qdrant.tech/)
 
 **Patent Discovery System** is an AI-powered platform designed for intellectual property (IP) professionals, patent attorneys, and engineers. It leverages state-of-the-art **Retrieval-Augmented Generation (RAG)** to perform deep patent searches, prior art discovery, and infringement analysis with high precision.
 
@@ -121,5 +121,6 @@ Patent-Discovery-System/
 
 - [Architecture Deep Dive](./docs/architecture.md)
 - [Retrieval Evaluation](./docs/evaluation.md) — ground truth methodology, ablation results, and why reranking ships disabled
+- [Development Guide](./docs/development.md) — environment setup, testing, and deployment workflow
 - [Backend Implementation Details](./apps/api/README.md)
 - [Frontend Component Guide](./apps/frontend/README.md)
